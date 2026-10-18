@@ -11,12 +11,12 @@ SetCompressor /SOLID lzma
 !define PRODUCT_EXE "dv-launcher.exe"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 
+OutFile "..\..\dist\DigitalVigital-Setup-1.0.0.exe"
+
 !include "MUI2.nsh"
 
 ; MUI Configuration
 !define MUI_ABORTWARNING
-!define MUI_ICON "..\..\assets\logo.png"
-!define MUI_UNICON "..\..\assets\logo.png"
 
 ; Default Installation Directory (user can change drive and folder freely)
 InstallDir "$PROGRAMFILES64\Digital Vigital"
@@ -46,15 +46,15 @@ Section "MainSection" SEC01
     SetOverwrite on
 
     ; Application binary and assets
-    File "..\..\target\release\${PRODUCT_EXE}"
+    File "/oname=${PRODUCT_EXE}" "..\..\target\x86_64-pc-windows-gnu\release\${PRODUCT_EXE}"
     File "..\..\assets\logo.png"
     File "..\..\README.md"
 
     ; Create Shortcuts in Start Menu and Desktop
     CreateDirectory "$SMPROGRAMS\Digital Vigital"
-    CreateShortcut "$SMPROGRAMS\Digital Vigital\Digital Vigital.lnk" "$INSTDIR\${PRODUCT_EXE}" "" "$INSTDIR\logo.png" 0
+    CreateShortcut "$SMPROGRAMS\Digital Vigital\Digital Vigital.lnk" "$INSTDIR\${PRODUCT_EXE}" "" "$INSTDIR\${PRODUCT_EXE}" 0
     CreateShortcut "$SMPROGRAMS\Digital Vigital\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
-    CreateShortcut "$DESKTOP\Digital Vigital.lnk" "$INSTDIR\${PRODUCT_EXE}" "" "$INSTDIR\logo.png" 0
+    CreateShortcut "$DESKTOP\Digital Vigital.lnk" "$INSTDIR\${PRODUCT_EXE}" "" "$INSTDIR\${PRODUCT_EXE}" 0
 
     ; Write Uninstaller
     WriteUninstaller "$INSTDIR\Uninstall.exe"
