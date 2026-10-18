@@ -1077,6 +1077,155 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    // Callback: CHANGE SKIN (.png file picker)
+    {
+        let auth_arc = auth_client.clone();
+        let cfg_arc = config_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_change_skin_clicked(move || {
+            let auth = auth_arc.clone();
+            let cfg = cfg_arc.clone();
+            let ui_w = ui_weak.clone();
+
+            tokio::spawn(async move {
+                let picked_file = tokio::task::spawn_blocking(|| {
+                    rfd::FileDialog::new()
+                        .add_filter("Minecraft Skin (*.png)", &["png"])
+                        .set_title("Select Minecraft Skin (.png)")
+                        .pick_file()
+                })
+                .await
+                .ok()
+                .flatten();
+
+                if let Some(src_path) = picked_file {
+                    let (active_user, is_ms) = {
+                        let mut a = auth.lock().await;
+                        let cm = cfg.lock().await;
+                        let acc = a.get_active_account(cm.config.active_account_id.as_deref());
+                        (acc.username.clone(), acc.account_type == "microsoft")
+                    };
+
+                    let _ = dv_launcher::skins::save_custom_skin(&active_user, &src_path);
+                    dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+                }
+            });
+        });
+    }
+
+    // Callback: CHANGE CAPE (.png file picker)
+    {
+        let auth_arc = auth_client.clone();
+        let cfg_arc = config_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_change_cape_clicked(move || {
+            let auth = auth_arc.clone();
+            let cfg = cfg_arc.clone();
+            let ui_w = ui_weak.clone();
+
+            tokio::spawn(async move {
+                let picked_file = tokio::task::spawn_blocking(|| {
+                    rfd::FileDialog::new()
+                        .add_filter("Minecraft Cape (*.png)", &["png"])
+                        .set_title("Select Minecraft Cape (.png)")
+                        .pick_file()
+                })
+                .await
+                .ok()
+                .flatten();
+
+                if let Some(src_path) = picked_file {
+                    let (active_user, is_ms) = {
+                        let mut a = auth.lock().await;
+                        let cm = cfg.lock().await;
+                        let acc = a.get_active_account(cm.config.active_account_id.as_deref());
+                        (acc.username.clone(), acc.account_type == "microsoft")
+                    };
+
+                    let _ = dv_launcher::skins::save_custom_cape(&active_user, &src_path);
+                    dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+                }
+            });
+        });
+    }
+
+    // Callback: RESET SKIN
+    {
+        let auth_arc = auth_client.clone();
+        let cfg_arc = config_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_reset_skin_clicked(move || {
+            let auth = auth_arc.clone();
+            let cfg = cfg_arc.clone();
+            let ui_w = ui_weak.clone();
+
+            tokio::spawn(async move {
+                let (active_user, is_ms) = {
+                    let mut a = auth.lock().await;
+                    let cm = cfg.lock().await;
+                    let acc = a.get_active_account(cm.config.active_account_id.as_deref());
+                    (acc.username.clone(), acc.account_type == "microsoft")
+                };
+
+                dv_launcher::skins::reset_player_skin(&active_user);
+                dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+            });
+        });
+    }
+
+    // Callback: RESET CAPE
+    {
+        let auth_arc = auth_client.clone();
+        let cfg_arc = config_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_reset_cape_clicked(move || {
+            let auth = auth_arc.clone();
+            let cfg = cfg_arc.clone();
+            let ui_w = ui_weak.clone();
+
+            tokio::spawn(async move {
+                let (active_user, is_ms) = {
+                    let mut a = auth.lock().await;
+                    let cm = cfg.lock().await;
+                    let acc = a.get_active_account(cm.config.active_account_id.as_deref());
+                    (acc.username.clone(), acc.account_type == "microsoft")
+                };
+
+                dv_launcher::skins::reset_player_cape(&active_user);
+                dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+            });
+        });
+    }
+
+    // Callback: SELECT CAPE PRESET
+    {
+        let auth_arc = auth_client.clone();
+        let cfg_arc = config_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_select_cape_preset(move |_preset: SharedString| {
+            let auth = auth_arc.clone();
+            let cfg = cfg_arc.clone();
+            let ui_w = ui_weak.clone();
+
+            tokio::spawn(async move {
+                let (active_user, is_ms) = {
+                    let mut a = auth.lock().await;
+                    let cm = cfg.lock().await;
+                    let acc = a.get_active_account(cm.config.active_account_id.as_deref());
+                    (acc.username.clone(), acc.account_type == "microsoft")
+                };
+
+                dv_launcher::skins::ensure_preset_capes();
+                dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+            });
+        });
+    }
+
     // Callback: CLEAR CONSOLE
     {
         let ui_weak = main_window.as_weak();
@@ -1433,6 +1582,50 @@ async fn dispatch_refresh_instances(
     });
 }
 
+async fn dispatch_refresh_player_appearance(
+    ui_weak: Weak<MainWindow>,
+    username: &str,
+    is_microsoft: bool,
+) {
+    let u_name = username.to_string();
+    let skin_path = dv_launcher::skins::get_or_fetch_player_skin(&u_name, is_microsoft).await;
+    let u_name2 = u_name.clone();
+    let cape_path = tokio::task::spawn_blocking(move || {
+        dv_launcher::skins::get_or_create_cape_preview(&u_name2, Some("crimson"))
+    })
+    .await
+    .ok()
+    .flatten();
+
+    let _ = slint::invoke_from_event_loop(move || {
+        if let Some(ui) = ui_weak.upgrade() {
+            if let Ok(skin_img) = slint::Image::load_from_path(&skin_path) {
+                ui.set_player_skin_image(skin_img);
+                ui.set_has_player_skin(true);
+                ui.set_player_skin_name(SharedString::from(
+                    skin_path.file_stem().unwrap_or_default().to_string_lossy().as_ref(),
+                ));
+            } else {
+                ui.set_has_player_skin(false);
+            }
+
+            if let Some(ref cp) = cape_path {
+                if let Ok(cape_img) = slint::Image::load_from_path(cp) {
+                    ui.set_player_cape_image(cape_img);
+                    ui.set_has_player_cape(true);
+                    ui.set_player_cape_name(SharedString::from("DV Crimson Cape"));
+                } else {
+                    ui.set_has_player_cape(false);
+                    ui.set_player_cape_name(SharedString::from("None"));
+                }
+            } else {
+                ui.set_has_player_cape(false);
+                ui.set_player_cape_name(SharedString::from("None"));
+            }
+        }
+    });
+}
+
 async fn dispatch_refresh_accounts(
     ui_weak: Weak<MainWindow>,
     auth_arc: &Arc<Mutex<MicrosoftAuthClient>>,
@@ -1456,9 +1649,11 @@ async fn dispatch_refresh_accounts(
         })
         .collect();
 
+    let ui_w2 = ui_weak.clone();
+    let active_user_disp = active_user.clone();
     let _ = slint::invoke_from_event_loop(move || {
-        if let Some(ui) = ui_weak.upgrade() {
-            ui.set_active_username(SharedString::from(active_user));
+        if let Some(ui) = ui_w2.upgrade() {
+            ui.set_active_username(SharedString::from(active_user_disp));
             ui.set_active_account_type(SharedString::from(if is_ms {
                 "Microsoft Account"
             } else {
@@ -1467,6 +1662,9 @@ async fn dispatch_refresh_accounts(
             ui.set_account_list(ModelRc::new(VecModel::from(items)));
         }
     });
+
+    // Refresh player skin and cape preview
+    dispatch_refresh_player_appearance(ui_weak, &active_user, is_ms).await;
 }
 
 async fn dispatch_refresh_mods(

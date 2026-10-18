@@ -1311,6 +1311,7 @@ dependencies = [
  "dunce",
  "futures-util",
  "hex",
+ "image",
  "keyring",
  "regex",
  "reqwest",

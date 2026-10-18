@@ -11,4 +11,5 @@ pub mod java_detector;
 pub mod loaders;
 pub mod minecraft;
 pub mod security;
+pub mod skins;
 pub mod ui;

@@ -210,6 +210,14 @@ export component MainWindow inherits Window {
     in-out property <string> performance_preset: "aikar";
     in-out property <string> performance_preset_display: "Aikar's Flags (High FPS & Zero Stutter)";
 
+    // Skin & Cape Customization
+    in-out property <image> player_skin_image;
+    in-out property <bool> has_player_skin: false;
+    in-out property <image> player_cape_image;
+    in-out property <bool> has_player_cape: false;
+    in-out property <string> player_skin_name: "Classic (Steve)";
+    in-out property <string> player_cape_name: "DV Crimson Cape";
+
     // Rust Engine Callbacks
     callback play_clicked();
     callback install_clicked();
@@ -245,6 +253,11 @@ export component MainWindow inherits Window {
     callback select_performance_preset(string);
     callback open_discord_clicked();
     callback open_website_clicked();
+    callback change_skin_clicked();
+    callback change_cape_clicked();
+    callback reset_skin_clicked();
+    callback reset_cape_clicked();
+    callback select_cape_preset(string);
 
     HorizontalLayout {
         // ==========================================
@@ -495,6 +508,93 @@ export component MainWindow inherits Window {
                                     text: "Minecraft " + root.active_mc_version + " • " + root.active_mod_loader + " Mod Loader";
                                     font-size: 14px;
                                     color: #A0A5B5;
+                                }
+                            }
+
+                            // Player Skin & Cape Character Showcase
+                            HorizontalLayout {
+                                spacing: 14px;
+                                alignment: center;
+
+                                Rectangle {
+                                    width: 64px;
+                                    height: 128px;
+                                    border-radius: 8px;
+                                    background: #ffffff0a;
+                                    border-width: 1px;
+                                    border-color: #ffffff18;
+                                    clip: true;
+
+                                    if root.has_player_skin : Image {
+                                        source: root.player_skin_image;
+                                        width: 100%;
+                                        height: 100%;
+                                        image-fit: contain;
+                                    }
+
+                                    if !root.has_player_skin : Text {
+                                        text: "👾";
+                                        font-size: 32px;
+                                        horizontal-alignment: center;
+                                        vertical-alignment: center;
+                                    }
+                                }
+
+                                if root.has_player_cape : Rectangle {
+                                    width: 44px;
+                                    height: 70px;
+                                    border-radius: 6px;
+                                    background: #ffffff0a;
+                                    border-width: 1px;
+                                    border-color: #FF334466;
+                                    clip: true;
+                                    y: (parent.height - self.height) / 2;
+
+                                    Image {
+                                        source: root.player_cape_image;
+                                        width: 100%;
+                                        height: 100%;
+                                        image-fit: contain;
+                                    }
+                                }
+
+                                VerticalLayout {
+                                    alignment: center;
+                                    spacing: 4px;
+
+                                    Text {
+                                        text: root.active_username;
+                                        font-size: 15px;
+                                        font-weight: 800;
+                                        color: #FFFFFF;
+                                    }
+
+                                    Rectangle {
+                                        height: 20px;
+                                        border-radius: 4px;
+                                        background: #FF334426;
+                                        border-width: 1px;
+                                        border-color: #FF334466;
+                                        HorizontalLayout {
+                                            padding-left: 6px;
+                                            padding-right: 6px;
+                                            Text {
+                                                text: root.player_cape_name;
+                                                font-size: 10px;
+                                                font-weight: 700;
+                                                color: #FF4D5E;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+                                    }
+
+                                    ActionButton {
+                                        width: 110px;
+                                        height: 28px;
+                                        text: "Skin & Cape 🎨";
+                                        is_primary: false;
+                                        clicked => { root.active_tab = 4; }
+                                    }
                                 }
                             }
 
@@ -1504,15 +1604,163 @@ export component MainWindow inherits Window {
                     VerticalLayout {
                         spacing: 4px;
                         Text {
-                            text: "Accounts";
+                            text: "Accounts & Appearance";
                             font-size: 26px;
                             font-weight: 900;
                             color: #FFFFFF;
                         }
                         Text {
-                            text: "Add Microsoft or Offline player accounts to use across your profiles";
+                            text: "Manage player accounts, custom skins, and cosmetic capes";
                             font-size: 13px;
                             color: #A0A5B5;
+                        }
+                    }
+                }
+
+                // ------------------------------------------
+                // PLAYER APPEARANCE: SKIN & CAPE STUDIO
+                // ------------------------------------------
+                GlassCard {
+                    height: 200px;
+                    background: #14161f88;
+
+                    HorizontalLayout {
+                        padding: 20px;
+                        spacing: 24px;
+                        alignment: space-between;
+
+                        // Left: Character & Cape Visual Showcase
+                        HorizontalLayout {
+                            spacing: 16px;
+                            alignment: start;
+
+                            // Skin Model Box
+                            Rectangle {
+                                width: 80px;
+                                height: 160px;
+                                border-radius: 8px;
+                                background: #ffffff0d;
+                                border-width: 1px;
+                                border-color: #ffffff26;
+                                clip: true;
+
+                                if root.has_player_skin : Image {
+                                    source: root.player_skin_image;
+                                    width: 100%;
+                                    height: 100%;
+                                    image-fit: contain;
+                                }
+                                if !root.has_player_skin : Text {
+                                    text: "👾";
+                                    font-size: 36px;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            // Cape Model Box
+                            Rectangle {
+                                width: 50px;
+                                height: 80px;
+                                border-radius: 8px;
+                                background: #ffffff0d;
+                                border-width: 1px;
+                                border-color: #FF334466;
+                                clip: true;
+                                y: (parent.height - self.height) / 2;
+
+                                if root.has_player_cape : Image {
+                                    source: root.player_cape_image;
+                                    width: 100%;
+                                    height: 100%;
+                                    image-fit: contain;
+                                }
+                                if !root.has_player_cape : Text {
+                                    text: "No\nCape";
+                                    font-size: 11px;
+                                    font-weight: 700;
+                                    color: #A0A5B5;
+                                    horizontal-alignment: center;
+                                    vertical-alignment: center;
+                                }
+                            }
+
+                            VerticalLayout {
+                                alignment: center;
+                                spacing: 4px;
+
+                                Text {
+                                    text: "PLAYER APPEARANCE & GEAR";
+                                    font-size: 11px;
+                                    font-weight: 800;
+                                    color: #FF3344;
+                                    letter-spacing: 1px;
+                                }
+
+                                Text {
+                                    text: root.active_username;
+                                    font-size: 20px;
+                                    font-weight: 900;
+                                    color: #FFFFFF;
+                                }
+
+                                Text {
+                                    text: "Skin: " + root.player_skin_name;
+                                    font-size: 13px;
+                                    color: #A0A5B5;
+                                }
+
+                                Text {
+                                    text: "Cape: " + root.player_cape_name;
+                                    font-size: 13px;
+                                    color: #A0A5B5;
+                                }
+                            }
+                        }
+
+                        // Right: Actions (Change Skin, Change Cape, Presets)
+                        VerticalLayout {
+                            alignment: center;
+                            spacing: 10px;
+                            width: 320px;
+
+                            Text {
+                                text: "CUSTOMIZE TEXTURES";
+                                font-size: 11px;
+                                font-weight: 800;
+                                color: #A0A5B5;
+                                letter-spacing: 1px;
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                ActionButton {
+                                    text: "📁 Change Skin (.png)";
+                                    is_primary: true;
+                                    clicked => { root.change_skin_clicked(); }
+                                }
+                                ActionButton {
+                                    width: 100px;
+                                    text: "Reset Skin";
+                                    is_primary: false;
+                                    clicked => { root.reset_skin_clicked(); }
+                                }
+                            }
+
+                            HorizontalLayout {
+                                spacing: 10px;
+                                ActionButton {
+                                    text: "🧣 Change Cape (.png)";
+                                    is_primary: false;
+                                    clicked => { root.change_cape_clicked(); }
+                                }
+                                ActionButton {
+                                    width: 100px;
+                                    text: "DV Cape";
+                                    is_primary: false;
+                                    clicked => { root.select_cape_preset("crimson"); }
+                                }
+                            }
                         }
                     }
                 }
