@@ -143,7 +143,7 @@ impl LaunchArgumentBuilder {
         };
         let paths_str: Vec<String> = cp_elements
             .into_iter()
-            .map(|p| p.to_string_lossy().to_string())
+            .map(|p| dunce::simplified(&p).to_string_lossy().to_string())
             .collect();
         paths_str.join(sep)
     }
@@ -153,14 +153,14 @@ impl LaunchArgumentBuilder {
         let mut args: Vec<String> = Vec::new();
 
         // 1. Java executable binary
-        args.push(ctx.java_executable.to_string_lossy().to_string());
+        args.push(dunce::simplified(&ctx.java_executable).to_string_lossy().to_string());
 
         // 2. Memory allocations
         args.push(format!("-Xms{}M", ctx.min_memory_mb));
         args.push(format!("-Xmx{}M", ctx.max_memory_mb));
 
         // 3. Native library path
-        let natives_dir = ctx.instance_dir.join("natives");
+        let natives_dir = dunce::simplified(&ctx.instance_dir.join("natives")).to_path_buf();
         args.push(format!(
             "-Djava.library.path={}",
             natives_dir.to_string_lossy()
@@ -198,11 +198,11 @@ impl LaunchArgumentBuilder {
         substitutions.insert("${version_name}", ctx.version_package.id.clone());
         substitutions.insert(
             "${game_directory}",
-            ctx.game_dir.to_string_lossy().to_string(),
+            dunce::simplified(&ctx.game_dir).to_string_lossy().to_string(),
         );
         substitutions.insert(
             "${assets_root}",
-            ctx.assets_dir.to_string_lossy().to_string(),
+            dunce::simplified(&ctx.assets_dir).to_string_lossy().to_string(),
         );
         substitutions.insert(
             "${assets_index_name}",

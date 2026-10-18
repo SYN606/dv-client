@@ -346,7 +346,8 @@ pub fn open_mods_folder<P: AsRef<Path>>(mods_dir: P) -> std::io::Result<()> {
     }
 
     if cfg!(target_os = "windows") {
-        std::process::Command::new("explorer").arg(dir).spawn()?;
+        let clean_dir = dunce::simplified(dir);
+        std::process::Command::new("explorer").arg(clean_dir).spawn()?;
     } else if cfg!(target_os = "macos") {
         std::process::Command::new("open").arg(dir).spawn()?;
     } else {

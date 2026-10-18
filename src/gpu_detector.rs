@@ -264,18 +264,19 @@ impl GpuDetector {
 
     #[cfg(target_os = "windows")]
     fn detect_windows_gpus(devices: &mut Vec<GpuDevice>) {
+        use std::os::windows::process::CommandExt;
         let mut raw_names: Vec<String> = Vec::new();
 
         // 1. Primary Method: PowerShell Get-CimInstance (fast and reliable on modern Win10/Win11)
-        if let Ok(output) = Command::new("powershell")
-            .args([
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name",
-            ])
-            .output()
-        {
+        let mut ps_cmd = Command::new("powershell");
+        ps_cmd.args([
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name",
+        ]);
+        ps_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+        if let Ok(output) = ps_cmd.output() {
             if output.status.success() {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 for line in stdout.lines() {
@@ -289,16 +290,16 @@ impl GpuDetector {
 
         // 2. Fallback Method: Windows Registry Display Class query
         if raw_names.is_empty() {
-            if let Ok(output) = Command::new("reg")
-                .args([
-                    "query",
-                    r"HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}",
-                    "/s",
-                    "/v",
-                    "DriverDesc",
-                ])
-                .output()
-            {
+            let mut reg_cmd = Command::new("reg");
+            reg_cmd.args([
+                "query",
+                r"HKLM\SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}",
+                "/s",
+                "/v",
+                "DriverDesc",
+            ]);
+            reg_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            if let Ok(output) = reg_cmd.output() {
                 if output.status.success() {
                     let stdout = String::from_utf8_lossy(&output.stdout);
                     for line in stdout.lines() {
@@ -317,10 +318,10 @@ impl GpuDetector {
 
         // 3. Fallback Method: Legacy WMIC
         if raw_names.is_empty() {
-            if let Ok(output) = Command::new("wmic")
-                .args(["path", "win32_VideoController", "get", "name"])
-                .output()
-            {
+            let mut wmic_cmd = Command::new("wmic");
+            wmic_cmd.args(["path", "win32_VideoController", "get", "name"]);
+            wmic_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            if let Ok(output) = wmic_cmd.output() {
                 let stdout = String::from_utf8_lossy(&output.stdout);
                 for line in stdout.lines().skip(1) {
                     let trimmed = line.trim();
@@ -352,15 +353,21 @@ impl GpuDetector {
             vars.push(("__NV_PRIME_RENDER_OFFLOAD".to_string(), "1".to_string()));
             vars.push(("__GLX_VENDOR_LIBRARY_NAME".to_string(), "nvidia".to_string()));
             vars.push(("__VK_LAYER_NV_optimus".to_string(), "NVIDIA_only".to_string()));
-            // Windows High-Performance shim hint
+            // Windows High-Performance hybrid graphics scheduler hint
             vars.push(("SHIM_MCCOMPAT".to_string(), "0x800000001".to_string()));
-        } else if id_lower.contains("amd") && id_lower.contains("discrete") {
+        } else if id_lower.contains("amd") {
             // Linux DRI PRIME for dedicated AMD cards
             vars.push(("DRI_PRIME".to_string(), "1".to_string()));
+            // Windows AMD Radeon Driver performance optimizations
+            vars.push(("GPU_MAX_ALLOC_PERCENT".to_string(), "100".to_string()));
+            vars.push(("GPU_USE_SYNC_OBJECTS".to_string(), "1".to_string()));
+            vars.push(("GPU_SINGLE_ALLOC_PERCENT".to_string(), "100".to_string()));
+            vars.push(("GPU_MAX_HEAP_SIZE".to_string(), "100".to_string()));
         } else if id_lower.contains("integrated") || id_lower.contains("intel") {
             // Force integrated power-saving
             vars.push(("__NV_PRIME_RENDER_OFFLOAD".to_string(), "0".to_string()));
             vars.push(("DRI_PRIME".to_string(), "0".to_string()));
+            vars.push(("SHIM_MCCOMPAT".to_string(), "0x000000000".to_string()));
         }
 
         vars

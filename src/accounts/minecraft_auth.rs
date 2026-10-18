@@ -272,8 +272,36 @@ impl MicrosoftAuthClient {
         Ok(account)
     }
 
+    /// Validates an offline player username according to Minecraft standards:
+    /// - 3 to 16 characters
+    /// - No whitespace
+    /// - Only alphanumeric characters and underscores
+    pub fn validate_offline_username(username: &str) -> Result<(), &'static str> {
+        let trimmed = username.trim();
+        if trimmed.is_empty() {
+            return Err("Username cannot be empty");
+        }
+        if username.contains(' ') {
+            return Err("Username cannot contain spaces");
+        }
+        if username.len() < 3 {
+            return Err("Username must be at least 3 characters");
+        }
+        if username.len() > 16 {
+            return Err("Username cannot exceed 16 characters");
+        }
+        if !username.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+            return Err("Only letters, numbers, and underscores are allowed");
+        }
+        Ok(())
+    }
+
     /// Create an offline development profile for local testing without network authentication.
     pub fn create_offline_account(&mut self, username: &str) -> Result<MinecraftAccount, AuthError> {
+        if let Err(err_msg) = Self::validate_offline_username(username) {
+            return Err(AuthError::Protocol(err_msg.to_string()));
+        }
+
         let digest = md5_hash(format!("OfflinePlayer:{}", username).as_bytes());
         let hex_str = hex::encode(digest);
         let formatted_uuid = format!(
@@ -322,25 +350,13 @@ impl MicrosoftAuthClient {
         self.accounts.get(account_id)
     }
 
-    pub fn get_active_account(&mut self, active_id: Option<&str>) -> MinecraftAccount {
+    pub fn get_active_account(&self, active_id: Option<&str>) -> Option<MinecraftAccount> {
         if let Some(id) = active_id {
             if let Some(acc) = self.accounts.get(id) {
-                return acc.clone();
+                return Some(acc.clone());
             }
         }
-        if let Some(acc) = self.accounts.values().next() {
-            return acc.clone();
-        }
-        // Fallback default
-        self.create_offline_account("DVPlayer")
-            .unwrap_or_else(|_| MinecraftAccount {
-                id: "00000000-0000-0000-0000-000000000000".to_string(),
-                username: "DVPlayer".to_string(),
-                account_type: "offline".to_string(),
-                avatar_url: None,
-                last_login: 0,
-                access_token: Some("0".to_string()),
-            })
+        self.accounts.values().next().cloned()
     }
 }
 
@@ -481,5 +497,27 @@ mod tests {
         let logged_out = client.logout(&acc.id).unwrap();
         assert!(logged_out);
         assert!(!client.accounts.contains_key(&acc.id));
+    }
+
+    #[test]
+    fn test_offline_username_validation() {
+        assert!(MicrosoftAuthClient::validate_offline_username("Alex").is_ok());
+        assert!(MicrosoftAuthClient::validate_offline_username("Cool_Player_99").is_ok());
+        assert_eq!(
+            MicrosoftAuthClient::validate_offline_username("Steve Jobs"),
+            Err("Username cannot contain spaces")
+        );
+        assert_eq!(
+            MicrosoftAuthClient::validate_offline_username("ab"),
+            Err("Username must be at least 3 characters")
+        );
+        assert_eq!(
+            MicrosoftAuthClient::validate_offline_username("ThisNameIsWayTooLong1234"),
+            Err("Username cannot exceed 16 characters")
+        );
+        assert_eq!(
+            MicrosoftAuthClient::validate_offline_username("Player!@#"),
+            Err("Only letters, numbers, and underscores are allowed")
+        );
     }
 }

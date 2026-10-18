@@ -236,4 +236,188 @@ impl InstallationPipeline {
         set_status("Installation, verification, and extraction complete!");
         Ok(package)
     }
+
+    /// Verifies all game files (client JAR and required libraries) against Mojang SHA-1 hashes.
+    /// Missing or corrupted files are immediately re-downloaded. Returns (total_files_checked, repaired_count).
+    pub async fn verify_version_files<F, S>(
+        &self,
+        version_id: &str,
+        config: &LauncherConfig,
+        progress_cb: Option<F>,
+        status_cb: Option<S>,
+    ) -> Result<(usize, usize), PipelineError>
+    where
+        F: Fn(DownloadProgress) + Send + Sync + 'static,
+        S: Fn(&str) + Send + Sync + 'static,
+    {
+        let set_status = |msg: &str| {
+            if let Some(ref cb) = status_cb {
+                cb(msg);
+            }
+            info!("{}", msg);
+        };
+
+        set_status(&format!("Verifying client package for Minecraft {}...", version_id));
+        let package = self.meta_client.get_version_package(version_id, false).await?;
+
+        let version_dir = config.shared_versions_dir().join(version_id);
+        fs::create_dir_all(&version_dir)?;
+
+        let mut download_tasks: Vec<DownloadTask> = Vec::new();
+        let mut total_files_checked = 0;
+
+        // Check Client JAR
+        total_files_checked += 1;
+        let client_jar_dest = version_dir.join(format!("{}.jar", version_id));
+        let client_valid = client_jar_dest.exists()
+            && crate::security::hashes::verify_file_sha1(&client_jar_dest, &package.downloads.client.sha1);
+        if !client_valid {
+            download_tasks.push(DownloadTask {
+                url: package.downloads.client.url.clone(),
+                destination: client_jar_dest,
+                sha1: Some(package.downloads.client.sha1.clone()),
+                sha256: None,
+                expected_size: Some(package.downloads.client.size),
+                display_name: Some(format!("Client JAR ({}.jar)", version_id)),
+            });
+        }
+
+        // Check Libraries
+        for lib in &package.libraries {
+            if !evaluate_rules(lib.rules.as_deref()) {
+                continue;
+            }
+            if let Some(ref downloads) = lib.downloads {
+                if let Some(ref art) = downloads.artifact {
+                    total_files_checked += 1;
+                    let rel_path_opt = art
+                        .path
+                        .as_deref()
+                        .or_else(|| art.url.split("libraries.minecraft.net/").nth(1));
+
+                    if let Some(rel_path) = rel_path_opt {
+                        let dest = config.shared_libraries_dir().join(rel_path);
+                        let is_valid = dest.exists()
+                            && crate::security::hashes::verify_file_sha1(&dest, &art.sha1);
+                        if !is_valid {
+                            download_tasks.push(DownloadTask {
+                                url: art.url.clone(),
+                                destination: dest,
+                                sha1: Some(art.sha1.clone()),
+                                sha256: None,
+                                expected_size: Some(art.size),
+                                display_name: Some(lib.name.clone()),
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        let repaired_count = download_tasks.len();
+        if !download_tasks.is_empty() {
+            set_status(&format!("Found {} missing or corrupted files. Re-downloading...", repaired_count));
+            self.downloader.download_all(download_tasks, progress_cb).await?;
+            set_status(&format!("Verification complete: Checked {} files, repaired {} corrupted/missing files.", total_files_checked, repaired_count));
+        } else {
+            set_status(&format!("Verification complete: All {} files verified and intact (100% valid SHA-1)!", total_files_checked));
+        }
+
+        Ok((total_files_checked, repaired_count))
+    }
+
+    /// Verifies and repairs the asset index and all asset objects (sounds, textures, fonts, languages).
+    /// Returns (total_assets_checked, repaired_count).
+    pub async fn repair_version_assets<F, S>(
+        &self,
+        version_id: &str,
+        config: &LauncherConfig,
+        progress_cb: Option<F>,
+        status_cb: Option<S>,
+    ) -> Result<(usize, usize), PipelineError>
+    where
+        F: Fn(DownloadProgress) + Send + Sync + 'static,
+        S: Fn(&str) + Send + Sync + 'static,
+    {
+        let set_status = |msg: &str| {
+            if let Some(ref cb) = status_cb {
+                cb(msg);
+            }
+            info!("{}", msg);
+        };
+
+        set_status(&format!("Resolving asset index for Minecraft {}...", version_id));
+        let package = self.meta_client.get_version_package(version_id, false).await?;
+
+        let index_dir = config.shared_assets_dir().join("indexes");
+        fs::create_dir_all(&index_dir)?;
+        let index_file = index_dir.join(format!("{}.json", package.asset_index.id));
+
+        if !index_file.exists()
+            || !crate::security::hashes::verify_file_sha1(&index_file, &package.asset_index.sha1)
+        {
+            let task = DownloadTask {
+                url: package.asset_index.url.clone(),
+                destination: index_file.clone(),
+                sha1: Some(package.asset_index.sha1.clone()),
+                sha256: None,
+                expected_size: Some(package.asset_index.size),
+                display_name: Some(format!("Asset Index ({}.json)", package.asset_index.id)),
+            };
+            self.downloader.download_file(&task).await?;
+        }
+
+        let mut download_tasks = Vec::new();
+        let mut total_assets_checked = 0;
+
+        if let Ok(content) = fs::read_to_string(&index_file) {
+            if let Ok(val) = serde_json::from_str::<Value>(&content) {
+                if let Some(objects) = val.get("objects").and_then(|o| o.as_object()) {
+                    for (name, obj) in objects {
+                        if let (Some(hash), Some(size)) = (
+                            obj.get("hash").and_then(|h| h.as_str()),
+                            obj.get("size").and_then(|s| s.as_u64()),
+                        ) {
+                            if hash.len() >= 2 {
+                                total_assets_checked += 1;
+                                let prefix = &hash[..2];
+                                let obj_dest = config
+                                    .shared_assets_dir()
+                                    .join("objects")
+                                    .join(prefix)
+                                    .join(hash);
+
+                                let is_valid = obj_dest.exists()
+                                    && obj_dest.metadata().map(|m| m.len() == size).unwrap_or(false)
+                                    && crate::security::hashes::verify_file_sha1(&obj_dest, hash);
+
+                                if !is_valid {
+                                    let obj_url = format!("{}/{}/{}", MOJANG_ASSET_BASE, prefix, hash);
+                                    download_tasks.push(DownloadTask {
+                                        url: obj_url,
+                                        destination: obj_dest,
+                                        sha1: Some(hash.to_string()),
+                                        sha256: None,
+                                        expected_size: Some(size),
+                                        display_name: Some(name.clone()),
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        let repaired_count = download_tasks.len();
+        if !download_tasks.is_empty() {
+            set_status(&format!("Repairing {} missing or corrupted assets...", repaired_count));
+            self.downloader.download_all(download_tasks, progress_cb).await?;
+            set_status(&format!("Asset repair complete: Checked {} assets, restored {} files.", total_assets_checked, repaired_count));
+        } else {
+            set_status(&format!("Asset check complete: All {} game assets intact and verified!", total_assets_checked));
+        }
+
+        Ok((total_assets_checked, repaired_count))
+    }
 }

@@ -405,18 +405,17 @@ pub fn get_or_create_cape_preview(username: &str, preset: Option<&str>) -> Optio
         }
     }
 
-    let preset_choice = preset.unwrap_or("crimson");
-    if preset_choice == "none" {
-        return None;
+    if let Some(p) = preset {
+        if p == "crimson" {
+            let cape_file = ensure_preset_capes();
+            if let Ok(preview) = render_cape_preview(&cape_file) {
+                let _ = preview.save(&preview_path);
+                return Some(preview_path);
+            }
+        }
     }
 
-    let cape_file = ensure_preset_capes();
-    if let Ok(preview) = render_cape_preview(&cape_file) {
-        let _ = preview.save(&preview_path);
-        Some(preview_path)
-    } else {
-        None
-    }
+    None
 }
 
 /// Save a newly uploaded custom skin file for the specified username and apply universally.
@@ -540,16 +539,14 @@ pub fn ensure_in_game_skin_pack<P: AsRef<Path>>(game_dir: P, username: &str) -> 
     } else if universal_cape.exists() {
         Some(universal_cape)
     } else {
-        let crimson = capes_dir.join("dv_crimson.png");
-        if crimson.exists() {
-            Some(crimson)
-        } else {
-            None
-        }
+        None
     };
 
+    let cape_entity_file = entity_dir.join("cape.png");
     if let Some(cp) = active_cape_path {
-        let _ = fs::copy(&cp, entity_dir.join("cape.png"));
+        let _ = fs::copy(&cp, &cape_entity_file);
+    } else if cape_entity_file.exists() {
+        let _ = fs::remove_file(&cape_entity_file);
     }
 
     // 5. Ensure options.txt automatically enables DV_Universal_Skin

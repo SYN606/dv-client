@@ -1,3 +1,5 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 //! Digital Vigital (DV) — High-Performance Native Desktop Minecraft Launcher
 //!
 //! Powered by an independent Rust application engine and native Slint desktop UI.
@@ -141,6 +143,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         };
         main_window.set_performance_preset(SharedString::from(&preset));
         main_window.set_performance_preset_display(SharedString::from(preset_disp));
+
+        main_window.set_custom_jvm_args_input(SharedString::from(&mgr.config.custom_jvm_args));
+        main_window.set_on_launch_action(SharedString::from(&mgr.config.on_launch_action));
+        let on_launch_disp = match mgr.config.on_launch_action.as_str() {
+            "close" => "Close Launcher Completely",
+            "keep_open" => "Keep Launcher Open",
+            _ => "Hide Launcher (Minimizes RAM)",
+        };
+        main_window.set_on_launch_action_display(SharedString::from(on_launch_disp));
     }
 
     // Refresh instances list in UI
@@ -230,6 +241,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if cm.config.privacy.enable_discord_rpc {
                             rpc_c.set_playing(&ver);
                         }
+                        let on_launch = cm.config.on_launch_action.clone();
+                        drop(cm);
+                        drop(im);
+
+                        if on_launch == "close" {
+                            info!("Exiting launcher completely per Settings (On-Launch: Close)");
+                            std::process::exit(0);
+                        } else if on_launch == "hide" {
+                            info!("Minimizing background memory overhead: hiding launcher window during gameplay");
+                            let ui_hide = ui_w.clone();
+                            let _ = slint::invoke_from_event_loop(move || {
+                                if let Some(ui) = ui_hide.upgrade() {
+                                    let _ = ui.window().hide();
+                                }
+                            });
+                        }
                     }
                     ProcessState::Exited(_) | ProcessState::Crashed(_) | ProcessState::Stopped => {
                         let cm = cfg_c.lock().await;
@@ -238,6 +265,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             rpc_c.clear();
                         }
+                        drop(cm);
+
+                        let ui_show = ui_w.clone();
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(ui) = ui_show.upgrade() {
+                                let _ = ui.window().set_minimized(false);
+                                let _ = ui.window().show();
+                            }
+                        });
                     }
                     _ => {}
                 }
@@ -345,8 +381,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 let account = {
-                    let mut a = auth.lock().await;
+                    let a = auth.lock().await;
                     a.get_active_account(config_clone.active_account_id.as_deref())
+                };
+
+                let account = match account {
+                    Some(acc) => acc,
+                    None => {
+                        error!("Launch aborted: No active account configured");
+                        is_launch.store(false, std::sync::atomic::Ordering::SeqCst);
+                        let ui_err = ui_w.clone();
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(ui) = ui_err.upgrade() {
+                                ui.set_is_launching(false);
+                                ui.set_is_downloading(false);
+                                ui.set_game_status(SharedString::from("Account Required: Configure player name in Accounts"));
+                                ui.set_active_tab(4);
+                            }
+                        });
+                        return;
+                    }
                 };
 
                 let java_path = inst
@@ -431,6 +485,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 let mut combined_jvm_args = inst.custom_jvm_args.clone();
+                if !config_clone.custom_jvm_args.trim().is_empty() {
+                    for arg in config_clone.custom_jvm_args.split_whitespace() {
+                        combined_jvm_args.push(arg.to_string());
+                    }
+                }
                 combined_jvm_args.extend(loader_info.extra_jvm_args);
 
                 let client_jar = config_clone
@@ -507,7 +566,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
-    // Callback: INSTALL / UPDATE CLICKED
+    // Callback: VERIFY FILES CLICKED
     {
         let cfg_arc = config_mgr.clone();
         let inst_arc = instance_mgr.clone();
@@ -528,21 +587,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 if let Some(inst) = active_inst {
                     let pipeline = InstallationPipeline::new(&config_clone);
-                    let inst_dir = inst.instance_dir(config_clone.instances_dir());
                     let ui_for_prog = ui_w.clone();
 
                     let ui_start = ui_w.clone();
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_start.upgrade() {
                             ui.set_is_downloading(true);
-                            ui.set_download_status_text(SharedString::from("Starting Installation..."));
+                            ui.set_download_status_text(SharedString::from("Verifying client JAR & libraries..."));
+                            ui.set_game_status(SharedString::from("Verifying integrity..."));
                         }
                     });
 
-                    let _ = pipeline
-                        .install_version(
+                    let res = pipeline
+                        .verify_version_files(
                             &inst.minecraft_version,
-                            &inst_dir,
                             &config_clone,
                             Some(move |prog: DownloadProgress| {
                                 let ui_cb = ui_for_prog.clone();
@@ -553,11 +611,172 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 });
                             }),
                             Some(|msg: &str| {
-                                info!("[Install Pipeline] {}", msg);
+                                info!("[File Verification] {}", msg);
                             }),
                         )
                         .await;
+
+                    let ui_end = ui_w.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = ui_end.upgrade() {
+                            ui.set_is_downloading(false);
+                            match res {
+                                Ok((verified, repaired)) => {
+                                    ui.set_game_status(SharedString::from(format!(
+                                        "Verified {} files ({} repaired)",
+                                        verified, repaired
+                                    )));
+                                }
+                                Err(e) => {
+                                    ui.set_game_status(SharedString::from(format!("Verification failed: {}", e)));
+                                }
+                            }
+                        }
+                    });
                 }
+            });
+        });
+    }
+
+    // Callback: REPAIR ASSETS CLICKED
+    {
+        let cfg_arc = config_mgr.clone();
+        let inst_arc = instance_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_repair_clicked(move || {
+            let cfg = cfg_arc.clone();
+            let inst_mgr = inst_arc.clone();
+            let ui_w = ui_weak.clone();
+
+            tokio::spawn(async move {
+                let (active_inst, config_clone) = {
+                    let im = inst_mgr.lock().await;
+                    let cm = cfg.lock().await;
+                    let inst = im.get_active_instance(&cm.config).cloned();
+                    (inst, cm.config.clone())
+                };
+
+                if let Some(inst) = active_inst {
+                    let pipeline = InstallationPipeline::new(&config_clone);
+                    let ui_for_prog = ui_w.clone();
+
+                    let ui_start = ui_w.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = ui_start.upgrade() {
+                            ui.set_is_downloading(true);
+                            ui.set_download_status_text(SharedString::from("Checking & repairing sound/texture assets..."));
+                            ui.set_game_status(SharedString::from("Repairing assets..."));
+                        }
+                    });
+
+                    let res = pipeline
+                        .repair_version_assets(
+                            &inst.minecraft_version,
+                            &config_clone,
+                            Some(move |prog: DownloadProgress| {
+                                let ui_cb = ui_for_prog.clone();
+                                let _ = slint::invoke_from_event_loop(move || {
+                                    if let Some(ui) = ui_cb.upgrade() {
+                                        handle_download_progress(&ui, &prog);
+                                    }
+                                });
+                            }),
+                            Some(|msg: &str| {
+                                info!("[Asset Repair] {}", msg);
+                            }),
+                        )
+                        .await;
+
+                    let ui_end = ui_w.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = ui_end.upgrade() {
+                            ui.set_is_downloading(false);
+                            match res {
+                                Ok((verified, repaired)) => {
+                                    ui.set_game_status(SharedString::from(format!(
+                                        "Assets OK: {} verified ({} repaired)",
+                                        verified, repaired
+                                    )));
+                                }
+                                Err(e) => {
+                                    ui.set_game_status(SharedString::from(format!("Asset repair failed: {}", e)));
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        });
+    }
+
+    // Callback: OPEN ACTIVE PROFILE FOLDER
+    {
+        let inst_arc = instance_mgr.clone();
+        let cfg_arc = config_mgr.clone();
+
+        main_window.on_open_profile_folder_clicked(move || {
+            let inst_mgr = inst_arc.clone();
+            let cfg = cfg_arc.clone();
+            tokio::spawn(async move {
+                let dir_opt = {
+                    let im = inst_mgr.lock().await;
+                    let cm = cfg.lock().await;
+                    im.get_active_instance(&cm.config).map(|i| i.game_dir(cm.config.instances_dir()))
+                };
+                if let Some(dir) = dir_opt {
+                    let _ = std::fs::create_dir_all(&dir);
+                    let _ = dv_launcher::instances::open_mods_folder(&dir);
+                }
+            });
+        });
+    }
+
+    // Callback: OPEN INSTANCE FOLDER BY ID
+    {
+        let inst_arc = instance_mgr.clone();
+        let cfg_arc = config_mgr.clone();
+
+        main_window.on_open_instance_folder_clicked(move |id: SharedString| {
+            let inst_mgr = inst_arc.clone();
+            let cfg = cfg_arc.clone();
+            let id_str = id.to_string();
+            tokio::spawn(async move {
+                let dir_opt = {
+                    let im = inst_mgr.lock().await;
+                    let cm = cfg.lock().await;
+                    im.get_instance(&id_str).map(|i| i.game_dir(cm.config.instances_dir()))
+                };
+                if let Some(dir) = dir_opt {
+                    let _ = std::fs::create_dir_all(&dir);
+                    let _ = dv_launcher::instances::open_mods_folder(&dir);
+                }
+            });
+        });
+    }
+
+    // Callback: DUPLICATE INSTANCE
+    {
+        let inst_arc = instance_mgr.clone();
+        let cfg_arc = config_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_duplicate_instance_clicked(move |id: SharedString| {
+            let inst_mgr = inst_arc.clone();
+            let cfg = cfg_arc.clone();
+            let ui_w = ui_weak.clone();
+            let id_str = id.to_string();
+
+            tokio::spawn(async move {
+                {
+                    let mut im = inst_mgr.lock().await;
+                    if let Some(src) = im.get_instance(&id_str) {
+                        let dup_name = format!("{} (Copy)", src.name);
+                        let _ = im.duplicate_instance(&id_str, &dup_name);
+                    }
+                }
+                dispatch_refresh_instances(ui_w.clone(), &inst_mgr, &cfg).await;
+                dispatch_refresh_mods(ui_w, &inst_mgr, &cfg).await;
             });
         });
     }
@@ -1057,14 +1276,59 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             tokio::spawn(async move {
                 let mut a = auth.lock().await;
-                if let Ok(acc) = a.create_offline_account(&username) {
-                    let mut cm = cfg.lock().await;
-                    cm.config.active_account_id = Some(acc.id);
-                    let _ = cm.save();
+                match a.create_offline_account(&username) {
+                    Ok(acc) => {
+                        let mut cm = cfg.lock().await;
+                        cm.config.active_account_id = Some(acc.id);
+                        let _ = cm.save();
+                        let ui_succ = ui_w.clone();
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(ui) = ui_succ.upgrade() {
+                                ui.set_offline_username_input(SharedString::from(""));
+                                ui.set_username_hint(SharedString::from("Account configured successfully ✓"));
+                                ui.set_is_username_valid(false);
+                            }
+                        });
+                    }
+                    Err(e) => {
+                        let err_str = e.to_string();
+                        let ui_fail = ui_w.clone();
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(ui) = ui_fail.upgrade() {
+                                ui.set_username_hint(SharedString::from(err_str));
+                                ui.set_is_username_valid(false);
+                            }
+                        });
+                    }
                 }
                 drop(a);
                 dispatch_refresh_accounts(ui_w, &auth, &cfg).await;
             });
+        });
+    }
+
+    // Callback: VALIDATE OFFLINE USERNAME
+    {
+        let ui_weak = main_window.as_weak();
+        main_window.on_validate_offline_username(move |name: SharedString| {
+            let name_str = name.to_string();
+            if let Some(ui) = ui_weak.upgrade() {
+                if name_str.is_empty() {
+                    ui.set_username_hint(SharedString::from(""));
+                    ui.set_is_username_valid(false);
+                } else {
+                    match MicrosoftAuthClient::validate_offline_username(&name_str) {
+                        Ok(()) => {
+                            ui.set_username_hint(SharedString::from("Valid Minecraft username ✓"));
+                            ui.set_is_username_valid(true);
+                        }
+                        Err(err) => {
+                            ui.set_username_hint(SharedString::from(err));
+                            ui.set_is_username_valid(false);
+                        }
+                    }
+                }
+            }
         });
     }
 
@@ -1178,16 +1442,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .flatten();
 
                 if let Some(src_path) = picked_file {
-                    let (active_user, is_ms, instances_dir) = {
-                        let mut a = auth.lock().await;
+                    let (acc_opt, instances_dir) = {
+                        let a = auth.lock().await;
                         let cm = cfg.lock().await;
-                        let acc = a.get_active_account(cm.config.active_account_id.as_deref());
-                        (acc.username.clone(), acc.account_type == "microsoft", cm.config.instances_dir())
+                        let info = a
+                            .get_active_account(cm.config.active_account_id.as_deref())
+                            .map(|acc| (acc.username.clone(), acc.account_type == "microsoft"));
+                        (info, cm.config.instances_dir())
                     };
 
-                    let _ = dv_launcher::skins::save_custom_skin(&active_user, &src_path);
-                    dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
-                    dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+                    if let Some((active_user, is_ms)) = acc_opt {
+                        let _ = dv_launcher::skins::save_custom_skin(&active_user, &src_path);
+                        dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
+                        dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+                    }
                 }
             });
         });
@@ -1216,16 +1484,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .flatten();
 
                 if let Some(src_path) = picked_file {
-                    let (active_user, is_ms, instances_dir) = {
-                        let mut a = auth.lock().await;
+                    let (acc_opt, instances_dir) = {
+                        let a = auth.lock().await;
                         let cm = cfg.lock().await;
-                        let acc = a.get_active_account(cm.config.active_account_id.as_deref());
-                        (acc.username.clone(), acc.account_type == "microsoft", cm.config.instances_dir())
+                        let info = a
+                            .get_active_account(cm.config.active_account_id.as_deref())
+                            .map(|acc| (acc.username.clone(), acc.account_type == "microsoft"));
+                        (info, cm.config.instances_dir())
                     };
 
-                    let _ = dv_launcher::skins::save_custom_cape(&active_user, &src_path);
-                    dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
-                    dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+                    if let Some((active_user, is_ms)) = acc_opt {
+                        let _ = dv_launcher::skins::save_custom_cape(&active_user, &src_path);
+                        dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
+                        dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+                    }
                 }
             });
         });
@@ -1243,16 +1515,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ui_w = ui_weak.clone();
 
             tokio::spawn(async move {
-                let (active_user, is_ms, instances_dir) = {
-                    let mut a = auth.lock().await;
+                let (acc_opt, instances_dir) = {
+                    let a = auth.lock().await;
                     let cm = cfg.lock().await;
-                    let acc = a.get_active_account(cm.config.active_account_id.as_deref());
-                    (acc.username.clone(), acc.account_type == "microsoft", cm.config.instances_dir())
+                    let info = a
+                        .get_active_account(cm.config.active_account_id.as_deref())
+                        .map(|acc| (acc.username.clone(), acc.account_type == "microsoft"));
+                    (info, cm.config.instances_dir())
                 };
 
-                dv_launcher::skins::reset_player_skin(&active_user);
-                dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
-                dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+                if let Some((active_user, is_ms)) = acc_opt {
+                    dv_launcher::skins::reset_player_skin(&active_user);
+                    dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
+                    dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+                }
             });
         });
     }
@@ -1269,16 +1545,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ui_w = ui_weak.clone();
 
             tokio::spawn(async move {
-                let (active_user, is_ms, instances_dir) = {
-                    let mut a = auth.lock().await;
+                let (acc_opt, instances_dir) = {
+                    let a = auth.lock().await;
                     let cm = cfg.lock().await;
-                    let acc = a.get_active_account(cm.config.active_account_id.as_deref());
-                    (acc.username.clone(), acc.account_type == "microsoft", cm.config.instances_dir())
+                    let info = a
+                        .get_active_account(cm.config.active_account_id.as_deref())
+                        .map(|acc| (acc.username.clone(), acc.account_type == "microsoft"));
+                    (info, cm.config.instances_dir())
                 };
 
-                dv_launcher::skins::reset_player_cape(&active_user);
-                dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
-                dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+                if let Some((active_user, is_ms)) = acc_opt {
+                    dv_launcher::skins::reset_player_cape(&active_user);
+                    dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
+                    dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+                }
             });
         });
     }
@@ -1295,16 +1575,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ui_w = ui_weak.clone();
 
             tokio::spawn(async move {
-                let (active_user, is_ms, instances_dir) = {
-                    let mut a = auth.lock().await;
+                let (acc_opt, instances_dir) = {
+                    let a = auth.lock().await;
                     let cm = cfg.lock().await;
-                    let acc = a.get_active_account(cm.config.active_account_id.as_deref());
-                    (acc.username.clone(), acc.account_type == "microsoft", cm.config.instances_dir())
+                    let info = a
+                        .get_active_account(cm.config.active_account_id.as_deref())
+                        .map(|acc| (acc.username.clone(), acc.account_type == "microsoft"));
+                    (info, cm.config.instances_dir())
                 };
 
-                dv_launcher::skins::ensure_preset_capes();
-                dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
-                dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+                if let Some((active_user, is_ms)) = acc_opt {
+                    dv_launcher::skins::ensure_preset_capes();
+                    dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
+                    dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
+                }
             });
         });
     }
@@ -1503,6 +1787,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 cm.config.default_window_height = default_cfg.default_window_height;
                 cm.config.privacy.enable_discord_rpc = default_cfg.privacy.enable_discord_rpc;
                 cm.config.performance_preset = default_cfg.performance_preset.clone();
+                cm.config.custom_jvm_args = default_cfg.custom_jvm_args.clone();
+                cm.config.on_launch_action = default_cfg.on_launch_action.clone();
                 let _ = cm.save();
 
                 let def_min = default_cfg.default_min_memory_mb as f32;
@@ -1510,6 +1796,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let def_w = default_cfg.default_window_width as i32;
                 let def_h = default_cfg.default_window_height as i32;
                 let def_rpc = default_cfg.privacy.enable_discord_rpc;
+                let def_act = default_cfg.on_launch_action.clone();
 
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_w.upgrade() {
@@ -1518,6 +1805,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ui.set_window_width(def_w);
                         ui.set_window_height(def_h);
                         ui.set_enable_discord_rpc(def_rpc);
+                        ui.set_custom_jvm_args_input(SharedString::from(""));
+                        ui.set_on_launch_action(SharedString::from(&def_act));
+                        ui.set_on_launch_action_display(SharedString::from("Hide Launcher (Minimizes RAM)"));
                         ui.set_settings_save_status(SharedString::from("Reset to Defaults ✓"));
                     }
                 });
@@ -1558,7 +1848,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let rpc = discord_rpc.clone();
 
         main_window.on_save_settings_clicked(move || {
-            let (min_mem, max_mem, width, height, discord_rpc, custom_java, root_dir, profiles_dir, perf_preset) =
+            let (min_mem, max_mem, width, height, discord_rpc, custom_java, custom_jvm, on_launch, root_dir, profiles_dir, perf_preset) =
                 if let Some(ui) = ui_weak.upgrade() {
                     (
                         ui.get_min_memory_mb() as u32,
@@ -1567,6 +1857,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ui.get_window_height() as u32,
                         ui.get_enable_discord_rpc(),
                         ui.get_custom_java_path().to_string(),
+                        ui.get_custom_jvm_args_input().to_string(),
+                        ui.get_on_launch_action().to_string(),
                         ui.get_launcher_root_dir_input().to_string(),
                         ui.get_profiles_dir_input().to_string(),
                         ui.get_performance_preset().to_string(),
@@ -1586,6 +1878,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 cm.config.default_window_height = height;
                 cm.config.privacy.enable_discord_rpc = discord_rpc;
                 cm.config.performance_preset = perf_preset;
+                cm.config.custom_jvm_args = custom_jvm;
+                if !on_launch.is_empty() {
+                    cm.config.on_launch_action = on_launch;
+                }
 
                 if !root_dir.trim().is_empty() {
                     cm.config.data_dir = PathBuf::from(root_dir.trim());
@@ -1655,6 +1951,82 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    // Callback: SELECT ON-LAUNCH ACTION
+    {
+        let cfg_arc = config_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_select_on_launch_action(move |val: SharedString| {
+            let val_str = val.to_string();
+            let cfg = cfg_arc.clone();
+            let ui_w = ui_weak.clone();
+
+            let (action_key, display_name) = match val_str.as_str() {
+                "close" => ("close", "Close Launcher Completely"),
+                "keep_open" => ("keep_open", "Keep Launcher Open"),
+                _ => ("hide", "Hide Launcher (Minimizes RAM)"),
+            };
+
+            tokio::spawn(async move {
+                {
+                    let mut cm = cfg.lock().await;
+                    cm.config.on_launch_action = action_key.to_string();
+                    let _ = cm.save();
+                }
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_w.upgrade() {
+                        ui.set_on_launch_action(SharedString::from(action_key));
+                        ui.set_on_launch_action_display(SharedString::from(display_name));
+                    }
+                });
+            });
+        });
+    }
+
+    // Callback: CLEAR ASSET CACHE
+    {
+        let cfg_arc = config_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_clear_asset_cache_clicked(move || {
+            let cfg = cfg_arc.clone();
+            let ui_w = ui_weak.clone();
+
+            tokio::spawn(async move {
+                let assets_dir = {
+                    let cm = cfg.lock().await;
+                    cm.config.shared_assets_dir()
+                };
+                let _ = std::fs::remove_dir_all(&assets_dir);
+                let _ = std::fs::create_dir_all(&assets_dir);
+                info!("Shared assets cache cleared.");
+
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_w.upgrade() {
+                        ui.set_settings_save_status(SharedString::from("Asset Cache Purged ✓"));
+                    }
+                });
+            });
+        });
+    }
+
+    // Callback: OPEN CACHES FOLDER
+    {
+        let cfg_arc = config_mgr.clone();
+
+        main_window.on_open_caches_folder_clicked(move || {
+            let cfg = cfg_arc.clone();
+            tokio::spawn(async move {
+                let assets_dir = {
+                    let cm = cfg.lock().await;
+                    cm.config.shared_assets_dir()
+                };
+                let _ = std::fs::create_dir_all(&assets_dir);
+                let _ = dv_launcher::instances::open_mods_folder(&assets_dir);
+            });
+        });
+    }
+
     // Callback: OPEN DISCORD
     main_window.on_open_discord_clicked(move || {
         open_browser(branding::DISCORD_URL);
@@ -1672,7 +2044,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 fn open_browser(url: &str) {
     #[cfg(target_os = "windows")]
-    let _ = std::process::Command::new("rundll32").args(["url.dll,FileProtocolHandler", url]).spawn();
+    {
+        use std::os::windows::process::CommandExt;
+        let mut cmd = std::process::Command::new("rundll32");
+        cmd.args(["url.dll,FileProtocolHandler", url]);
+        cmd.creation_flags(0x08000000);
+        let _ = cmd.spawn();
+    }
     #[cfg(target_os = "macos")]
     let _ = std::process::Command::new("open").arg(url).spawn();
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
@@ -1747,7 +2125,7 @@ async fn dispatch_refresh_player_appearance(
     let skin_path = dv_launcher::skins::get_or_fetch_player_skin(&u_name, is_microsoft).await;
     let u_name2 = u_name.clone();
     let cape_path = tokio::task::spawn_blocking(move || {
-        dv_launcher::skins::get_or_create_cape_preview(&u_name2, Some("crimson"))
+        dv_launcher::skins::get_or_create_cape_preview(&u_name2, None)
     })
     .await
     .ok()
@@ -1777,11 +2155,9 @@ async fn dispatch_refresh_player_appearance(
                     ui.set_has_player_cape(true);
                     let stem = cp.file_stem().unwrap_or_default().to_string_lossy();
                     let cape_display = if stem.contains("universal") {
-                        "Universal Custom Cape".to_string()
-                    } else if stem.contains("crimson") {
-                        "DV Crimson Cape (Universal)".to_string()
+                        "Custom Cape".to_string()
                     } else {
-                        format!("Universal Cape ({})", stem)
+                        format!("Custom Cape ({})", stem)
                     };
                     ui.set_player_cape_name(SharedString::from(cape_display));
                 } else {
@@ -1801,12 +2177,14 @@ async fn dispatch_refresh_accounts(
     auth_arc: &Arc<Mutex<MicrosoftAuthClient>>,
     cfg_arc: &Arc<Mutex<ConfigManager>>,
 ) {
-    let mut auth = auth_arc.lock().await;
+    let auth = auth_arc.lock().await;
     let cm = cfg_arc.lock().await;
 
     let active_acc = auth.get_active_account(cm.config.active_account_id.as_deref());
-    let active_user = active_acc.username.clone();
-    let is_ms = active_acc.account_type == "microsoft";
+    let (active_user, is_ms) = match active_acc {
+        Some(ref acc) => (acc.username.clone(), acc.account_type == "microsoft"),
+        None => (String::new(), false),
+    };
 
     let items: Vec<AccountItem> = auth
         .accounts
@@ -1823,8 +2201,10 @@ async fn dispatch_refresh_accounts(
     let active_user_disp = active_user.clone();
     let _ = slint::invoke_from_event_loop(move || {
         if let Some(ui) = ui_w2.upgrade() {
-            ui.set_active_username(SharedString::from(active_user_disp));
-            ui.set_active_account_type(SharedString::from(if is_ms {
+            ui.set_active_username(SharedString::from(&active_user_disp));
+            ui.set_active_account_type(SharedString::from(if active_user_disp.is_empty() {
+                "Not Configured"
+            } else if is_ms {
                 "Microsoft Account"
             } else {
                 "Offline Profile"
@@ -1834,7 +2214,19 @@ async fn dispatch_refresh_accounts(
     });
 
     // Refresh player skin and cape preview
-    dispatch_refresh_player_appearance(ui_weak, &active_user, is_ms).await;
+    if !active_user.is_empty() {
+        dispatch_refresh_player_appearance(ui_weak, &active_user, is_ms).await;
+    } else {
+        let ui_w3 = ui_weak.clone();
+        let _ = slint::invoke_from_event_loop(move || {
+            if let Some(ui) = ui_w3.upgrade() {
+                ui.set_has_player_skin(false);
+                ui.set_has_player_cape(false);
+                ui.set_player_skin_name(SharedString::from("No Skin Configured"));
+                ui.set_player_cape_name(SharedString::from("None"));
+            }
+        });
+    }
 }
 
 async fn dispatch_refresh_mods(

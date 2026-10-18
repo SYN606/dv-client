@@ -23,10 +23,13 @@ pub enum ConfigError {
 pub fn get_default_app_data_dir() -> PathBuf {
     if cfg!(target_os = "windows") {
         if let Ok(appdata) = std::env::var("APPDATA") {
-            return PathBuf::from(appdata).join("DigitalVigital");
+            return dunce::simplified(&PathBuf::from(appdata).join("DigitalVigital")).to_path_buf();
+        }
+        if let Some(data) = dirs::data_dir() {
+            return dunce::simplified(&data.join("DigitalVigital")).to_path_buf();
         }
         if let Some(home) = dirs::home_dir() {
-            return home.join("AppData").join("Roaming").join("DigitalVigital");
+            return dunce::simplified(&home.join("AppData").join("Roaming").join("DigitalVigital")).to_path_buf();
         }
         PathBuf::from(".digitalvigital")
     } else if cfg!(target_os = "macos") {
@@ -157,6 +160,10 @@ pub struct LauncherConfig {
 
     #[serde(default = "default_performance_preset")]
     pub performance_preset: String,
+    #[serde(default = "default_on_launch_action")]
+    pub on_launch_action: String,
+    #[serde(default)]
+    pub custom_jvm_args: String,
 
     #[serde(default)]
     pub privacy: PrivacySettings,
@@ -164,6 +171,10 @@ pub struct LauncherConfig {
     pub downloads: DownloadSettings,
     #[serde(default)]
     pub appearance: AppearanceSettings,
+}
+
+fn default_on_launch_action() -> String {
+    "hide".to_string()
 }
 
 fn default_performance_preset() -> String {
@@ -205,6 +216,8 @@ impl Default for LauncherConfig {
             active_instance_id: None,
             active_account_id: None,
             performance_preset: default_performance_preset(),
+            on_launch_action: default_on_launch_action(),
+            custom_jvm_args: String::new(),
             privacy: PrivacySettings::default(),
             downloads: DownloadSettings::default(),
             appearance: AppearanceSettings::default(),

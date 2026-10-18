@@ -28,12 +28,21 @@ impl JavaDetector {
             return None;
         }
 
-        let output = Command::new(path).arg("-version").output().ok()?;
+        let mut cmd = Command::new(path);
+        cmd.arg("-version");
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW suppresses console window flash
+        }
+
+        let output = cmd.output().ok()?;
         let stderr = String::from_utf8_lossy(&output.stderr);
         let stdout = String::from_utf8_lossy(&output.stdout);
         let full_output = format!("{}\n{}", stderr, stdout);
 
-        Self::parse_version_output(path.to_path_buf(), &full_output)
+        let clean_path = dunce::simplified(path).to_path_buf();
+        Self::parse_version_output(clean_path, &full_output)
     }
 
     /// Parses the raw string output of `java -version`.
@@ -84,6 +93,16 @@ impl JavaDetector {
             "Azul Zulu"
         } else if output.contains("BellSoft") || output.contains("Liberica") {
             "BellSoft Liberica"
+        } else if output.contains("Corretto") {
+            "Amazon Corretto"
+        } else if output.contains("GraalVM") {
+            "GraalVM"
+        } else if output.contains("Semeru") {
+            "IBM Semeru"
+        } else if output.contains("Red Hat") {
+            "Red Hat OpenJDK"
+        } else if output.contains("SapMachine") {
+            "SAP SapMachine"
         } else if output.contains("OpenJDK") {
             "OpenJDK"
         } else if output.contains("Oracle") {
@@ -124,7 +143,7 @@ impl JavaDetector {
             };
 
             for dir in std::env::split_paths(&path_var) {
-                let candidate = dir.join(exe_name);
+                let candidate = dunce::simplified(&dir.join(exe_name)).to_path_buf();
                 if candidate.exists() && !candidate_paths.contains(&candidate) {
                     candidate_paths.push(candidate);
                 }
@@ -138,7 +157,7 @@ impl JavaDetector {
             // Check JAVA_HOME & JDK_HOME directly
             for env_key in &["JAVA_HOME", "JDK_HOME"] {
                 if let Ok(home) = std::env::var(env_key) {
-                    let java_exe = PathBuf::from(home).join("bin").join("java.exe");
+                    let java_exe = dunce::simplified(&PathBuf::from(home).join("bin").join("java.exe")).to_path_buf();
                     if java_exe.exists() && !candidate_paths.contains(&java_exe) {
                         candidate_paths.push(java_exe);
                     }
@@ -156,6 +175,17 @@ impl JavaDetector {
                 win_roots.push(base_path.join("Microsoft"));
                 win_roots.push(base_path.join("BellSoft"));
                 win_roots.push(base_path.join("Zulu"));
+                win_roots.push(base_path.join("Amazon Corretto"));
+                win_roots.push(base_path.join("GraalVM"));
+                win_roots.push(base_path.join("Semeru"));
+                win_roots.push(base_path.join("RedHat"));
+                win_roots.push(base_path.join("SapMachine"));
+            }
+
+            // User directory IDE runtimes (.jdks / .gradle)
+            if let Some(home) = dirs::home_dir() {
+                win_roots.push(home.join(".jdks"));
+                win_roots.push(home.join(".gradle").join("jdks"));
             }
 
             // Official Minecraft Launcher runtimes on Windows
@@ -177,14 +207,14 @@ impl JavaDetector {
                 if root.exists() {
                     if let Ok(entries) = std::fs::read_dir(&root) {
                         for entry in entries.flatten() {
-                            let java_exe = entry.path().join("bin").join("java.exe");
+                            let java_exe = dunce::simplified(&entry.path().join("bin").join("java.exe")).to_path_buf();
                             if java_exe.exists() && !candidate_paths.contains(&java_exe) {
                                 candidate_paths.push(java_exe.clone());
                             }
                             // Deep scan subdirectories for runtime bundles (e.g. java-runtime-gamma/windows/...)
                             if let Ok(sub_entries) = std::fs::read_dir(entry.path()) {
                                 for sub in sub_entries.flatten() {
-                                    let sub_java = sub.path().join("bin").join("java.exe");
+                                    let sub_java = dunce::simplified(&sub.path().join("bin").join("java.exe")).to_path_buf();
                                     if sub_java.exists() && !candidate_paths.contains(&sub_java) {
                                         candidate_paths.push(sub_java);
                                     }
