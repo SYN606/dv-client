@@ -174,16 +174,52 @@ impl ModrinthClient {
     pub async fn fetch_mod_icon(&self, project_id: &str, icon_url: &str) -> Option<std::path::PathBuf> {
         let cache_dir = crate::instances::mods::get_mod_icon_cache_dir();
         let icon_path = cache_dir.join(format!("modrinth_{}.png", project_id));
-        if icon_path.exists() && fs::metadata(&icon_path).map(|m| m.len() > 0).unwrap_or(false) {
-            return Some(icon_path);
+
+        if icon_path.exists() {
+            // Verify valid PNG signature: [0x89, 0x50, 0x4E, 0x47]
+            let is_valid = if let Ok(mut f) = fs::File::open(&icon_path) {
+                use std::io::Read;
+                let mut header = [0u8; 4];
+                f.read_exact(&mut header).is_ok() && header == [0x89, 0x50, 0x4E, 0x47]
+            } else {
+                false
+            };
+
+            if is_valid {
+                return Some(icon_path);
+            }
+
+            // Attempt to re-encode existing corrupt/WebP file to valid PNG
+            if let Ok(bytes) = fs::read(&icon_path) {
+                if let Ok(img) = image::load_from_memory(&bytes) {
+                    if img.save_with_format(&icon_path, image::ImageFormat::Png).is_ok() {
+                        return Some(icon_path);
+                    }
+                }
+            }
+            let _ = fs::remove_file(&icon_path);
         }
 
         match self.client.get(icon_url).send().await {
             Ok(resp) if resp.status().is_success() => {
                 if let Ok(bytes) = resp.bytes().await {
                     if !bytes.is_empty() {
-                        let _ = fs::write(&icon_path, bytes);
-                        return Some(icon_path);
+                        let path_clone = icon_path.clone();
+                        let saved = tokio::task::spawn_blocking(move || {
+                            if bytes.len() >= 4 && bytes[..4] == [0x89, 0x50, 0x4E, 0x47] {
+                                fs::write(&path_clone, &bytes).is_ok()
+                            } else if let Ok(img) = image::load_from_memory(&bytes) {
+                                img.save_with_format(&path_clone, image::ImageFormat::Png).is_ok()
+                            } else {
+                                false
+                            }
+                        })
+                        .await
+                        .unwrap_or(false);
+
+                        if saved {
+                            return Some(icon_path);
+                        }
                     }
                 }
             }

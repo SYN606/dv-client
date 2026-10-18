@@ -30,6 +30,17 @@ pub fn get_mod_icon_cache_dir() -> PathBuf {
     cache_base
 }
 
+fn save_validated_icon_png(buf: &[u8], cache_path: &Path) -> bool {
+    if buf.len() >= 4 && buf[..4] == [0x89, 0x50, 0x4E, 0x47] {
+        return fs::write(cache_path, buf).is_ok();
+    }
+    // Attempt decoding and converting other image formats (e.g. WebP, JPEG) to PNG
+    if let Ok(img) = image::load_from_memory(buf) {
+        return img.save_with_format(cache_path, image::ImageFormat::Png).is_ok();
+    }
+    false
+}
+
 fn extract_icon_from_archive<R: std::io::Read + std::io::Seek>(
     archive: &mut zip::ZipArchive<R>,
     icon_candidate: Option<&str>,
@@ -46,7 +57,7 @@ fn extract_icon_from_archive<R: std::io::Read + std::io::Seek>(
             let mut buf = Vec::new();
             if std::io::Read::read_to_end(&mut f, &mut buf).is_ok()
                 && !buf.is_empty()
-                && fs::write(cache_path, &buf).is_ok()
+                && save_validated_icon_png(&buf, cache_path)
             {
                 return Some(cache_path.to_path_buf());
             }
@@ -67,7 +78,7 @@ fn extract_icon_from_archive<R: std::io::Read + std::io::Seek>(
             let mut buf = Vec::new();
             if std::io::Read::read_to_end(&mut f, &mut buf).is_ok()
                 && !buf.is_empty()
-                && fs::write(cache_path, &buf).is_ok()
+                && save_validated_icon_png(&buf, cache_path)
             {
                 return Some(cache_path.to_path_buf());
             }
@@ -83,7 +94,7 @@ fn extract_icon_from_archive<R: std::io::Read + std::io::Seek>(
                 let mut buf = Vec::new();
                 if std::io::Read::read_to_end(&mut f, &mut buf).is_ok()
                     && !buf.is_empty()
-                    && fs::write(cache_path, &buf).is_ok()
+                    && save_validated_icon_png(&buf, cache_path)
                 {
                     return Some(cache_path.to_path_buf());
                 }
