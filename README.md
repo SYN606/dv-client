@@ -1,76 +1,93 @@
-# Digital Vigital (DV) Launcher (Rust Engine + Slint Native Desktop UI)
+<div align="center">
 
-> *Your Minecraft. Your Control.*
+<img src="assets/logo.png" alt="Digital Vigital Logo" width="140" />
 
-**Digital Vigital (DV) Launcher** is an independently engineered, modern, privacy-first desktop Minecraft launcher built in **Rust** and powered by the **Slint** native UI framework.
+# Digital Vigital (DV) Launcher
+### *Your Minecraft. Your Control.*
 
-It completely eliminates Python runtime dependencies from production, replaces vulnerable static XOR credential masking with operating-system-backed hardware keyrings, rejects invasive telemetry, and provides segregated multi-instance management connected directly to official Minecraft and mod-loader infrastructure.
+[![Release](https://img.shields.io/badge/Release-v1.0.0-FF3344?style=for-the-badge)](https://github.com/SYN606/dv-client)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/flex-dv)
+[![Website](https://img.shields.io/badge/Website-digitalvigital.fun-10B981?style=for-the-badge)](https://digitalvigital.fun)
 
----
+A modern, ultra-fast Minecraft launcher designed for gamers who care about speed, clean design, and privacy. Built completely from the ground up in Rust — zero lag, zero bloat, and maximum FPS.
 
-## ⚡ Core Highlights
-
-- **Pure Rust Engine & Native Slint GUI**: Zero Electron, zero WebViews, zero Python runtime dependency in production. Fast, lightweight, and memory-safe.
-- **Hardware & OS-Backed Credential Security**: Microsoft OAuth refresh tokens are stored exclusively via OS keyring facilities (`keyring-rs`):
-  - **Linux**: Secret Service API via DBus (`zbus`)
-  - **Windows**: Windows Credential Manager / DPAPI
-  - **macOS**: Apple Keychain Services
-- **Strict Clean-Room Architecture**: Zero proprietary launcher code, zero runtime bytecode instrumentation agents (`-javaagent`), and zero reverse-engineered decompiled logic.
-- **Zero Telemetry**: No Google Analytics, no session telemetry, no machine fingerprinting, and zero unsolicited network pings.
-- **High-Performance Verified Downloader**: Bounded concurrent transfers over HTTP/2 with in-flight streaming SHA-1 and SHA-256 validation against official Mojang catalogs.
-- **Zip Slip Path Traversal Protection**: Enforces canonical destination boundaries on all extracted library archives and modpacks.
-- **Multi-Instance Segregation**: Isolated `.minecraft` working directories, custom memory allocations, and version overrides.
-- **Real-Time Sanitized Terminal**: Non-shell subprocess execution with live streaming and automatic in-flight redaction of OAuth bearer tokens and sensitive parameters.
+</div>
 
 ---
 
-## 🚀 Quick Start (Fedora Linux & Windows)
+## ✨ Why Choose DV Launcher?
 
-### Prerequisites
+### ⚡ Blazing Fast & Lightweight
+No Electron, no hidden browser engines eating your RAM. DV is a native desktop app that opens instantly, uses virtually zero background memory, and leaves all your PC's power where it belongs: **inside Minecraft**.
 
-- **Rust toolchain (1.88+)** (e.g. `rustc 1.99.1+`, `cargo`)
-- **Java Runtime Environment (JRE/JDK 21 Recommended)** for modern Minecraft versions
-- Standard development packages (on Fedora: `mesa-libGL-devel`, `fontconfig-devel`, `openssl-devel`)
+### 🎮 All Versions & Loaders in One Place
+Switch seamlessly between any version of Minecraft:
+- **Vanilla** (All releases & snapshots)
+- **Fabric** & **Quilt**
+- **Forge** & **NeoForge**
+- **OptiFine**
 
-### Building & Running
+### 🧩 Built-in Mod Store & Manager
+- **Browse Modrinth Directly**: Search thousands of mods with full logos, descriptions, and download counts right inside the launcher.
+- **1-Click Installs**: Add mods with a single click — no manual dragging into folders needed.
+- **Easy Mod Manager**: Enable, disable, or remove your mods with a simple toggle switch.
 
+### 🚀 Smart GPU Auto-Detection (Max FPS)
+Never let Minecraft accidentally run on weak integrated graphics again. DV automatically detects your **NVIDIA GeForce** or **AMD Radeon** graphics card and forces high-performance mode so you get buttery-smooth framerates.
+
+### 🛡️ 100% Private & Secure
+- **No Trackers or Ads**: We don't track your gameplay, collect telemetry, or spy on your computer.
+- **Safe Accounts**: Full support for both **Microsoft Accounts** and **Offline Profiles**. Your login tokens are kept locked in your operating system's native hardware vault.
+
+### 🎧 Discord Rich Presence
+Show off what you're playing to your friends on Discord with custom status display:  
+*"Playing Minecraft via Digital Vigital"*
+
+---
+
+## 🖥️ Getting Started
+
+### 1. Download & Prerequisites
+Make sure you have a modern **Java** installed (Java 21 is recommended for latest Minecraft versions):
+- **Windows**: [Eclipse Temurin JDK 21](https://adoptium.net/) or Microsoft OpenJDK
+- **Linux**: Available via your package manager (`sudo dnf install java-21-openjdk` or `sudo apt install openjdk-21-jre`)
+
+### 2. Run the Launcher
+
+#### On Linux / macOS / Windows (From Source)
 ```bash
-# Check compilation
-cargo check
+# Clone the repository
+git clone git@github-personal:SYN606/dv-client.git
+cd dv-client
 
-# Run test suite
-cargo test
-
-# Launch Digital Vigital Launcher native desktop window
+# Launch the app
 cargo run --release
 ```
 
 ---
 
-## 🏗️ Architecture Overview
+## 🕹️ Key Features at a Glance
 
-```text
-+-------------------------------------------------------------------------+
-| Digital Vigital Native Desktop UI (Slint)                               |
-| - Obsidian Black & Crimson Red Design Tokens                            |
-| - Play Dashboard, Profiles Manager, Accounts Vault, Downloads, Console  |
-+------------------------------------+------------------------------------+
-                                     | slint::invoke_from_event_loop
-                                     v
-+-------------------------------------------------------------------------+
-| Digital Vigital Core Subsystems (Rust Engine)                           |
-| - ConfigManager: Schema-validated JSON persistence & XDG/APPDATA paths  |
-| - CredentialVault: OS-Backed Keyring (Linux Secret Service / DPAPI)     |
-| - PistonMetaClient: Official Mojang Piston metadata & asset catalogs    |
-| - AsyncDownloader: Bounded concurrent HTTP/2 streams + SHA-1 validation|
-| - SafeExtractor: Zip Slip path traversal prevention engine              |
-| - LaunchArgumentBuilder: Classpath composer & parameter interpolator    |
-| - ProcessSupervisor: Subprocess orchestrator & in-flight secret scrubber|
-+-------------------------------------------------------------------------+
-```
+| Feature | What It Means for You |
+| :--- | :--- |
+| **Multi-Profile System** | Keep different worlds, modpacks, and versions completely separate with their own saves and configs. |
+| **Fast Downloader** | Multi-threaded downloads pull game assets and libraries at maximum internet speed. |
+| **Custom Memory Slider** | Allocate exactly as much RAM (e.g. 4GB, 8GB, 16GB) as your modpack needs. |
+| **Live Game Console** | View real-time logs and crash reports if a mod misbehaves. |
+| **Wayland & Dark Mode** | Sleek Obsidian & Crimson gamer theme with native Linux Wayland and Windows 10/11 support. |
 
 ---
 
-## ⚖️ Legal & Trademarks
+## 💬 Community & Support
 
-Minecraft is a registered trademark of Mojang Synergies AB and Microsoft Corporation. Digital Vigital Launcher is an independent clean-room open-source project and is **not affiliated with, endorsed by, or sponsored by Mojang Studios or Microsoft Corporation**.
+Have questions, suggestions, or want to hang out with other players?
+
+- 🌐 **Official Website**: [digitalvigital.fun](https://digitalvigital.fun)
+- 💬 **Discord Community**: [discord.gg/flex-dv](https://discord.gg/flex-dv)
+- 🐛 **Report an Issue**: Open an issue on our [GitHub repository](https://github.com/SYN606/dv-client/issues)
+
+---
+
+## ⚖️ Legal Notice
+
+*Minecraft is a registered trademark of Mojang Synergies AB and Microsoft Corporation. Digital Vigital Launcher is an independent open-source project and is not affiliated with, endorsed by, or sponsored by Mojang Studios or Microsoft.*
