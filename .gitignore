@@ -1,0 +1,29 @@
+# Rust build artifacts
+/target
+**/*.rs.bk
+
+# Cargo temporary files
+Cargo.lock.dist
+
+# Local environment configuration
+.cargo/config.toml
+.local_lib/
+.pkgconfig/
+
+# IDE & Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+*.bak
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# App runtime data & caches (if run locally)
+/instances/
+/logs/
+/.digitalvigital/
