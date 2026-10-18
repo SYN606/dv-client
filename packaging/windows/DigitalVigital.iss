@@ -4,7 +4,7 @@
 [Setup]
 AppId={{8B847688-662E-4D4B-A795-B33AC6EC8B99}
 AppName=Digital Vigital
-AppVersion=1.0.0
+AppVersion=1.1.0
 AppPublisher=Digital Vigital
 AppPublisherURL=https://digitalvigital.com
 AppSupportURL=https://digitalvigital.com
@@ -15,8 +15,9 @@ DisableDirPage=no
 AllowNoIcons=yes
 AlwaysShowDirOnEditPage=yes
 OutputDir=..\..\dist
-OutputBaseFilename=DigitalVigital-Setup-1.0.0
-SetupIconFile=..\..\assets\logo.png
+OutputBaseFilename=DigitalVigital-Setup-1.1.0
+SetupIconFile=..\..\assets\logo.ico
+LicenseFile=license.rtf
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -32,11 +33,12 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 [Files]
 Source: "..\..\target\release\dv-launcher.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\assets\logo.png"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\assets\logo.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\Digital Vigital"; Filename: "{app}\dv-launcher.exe"; IconFilename: "{app}\logo.png"
-Name: "{autodesktop}\Digital Vigital"; Filename: "{app}\dv-launcher.exe"; IconFilename: "{app}\logo.png"; Tasks: desktopicon
+Name: "{autoprograms}\Digital Vigital"; Filename: "{app}\dv-launcher.exe"; IconFilename: "{app}\logo.ico"
+Name: "{autodesktop}\Digital Vigital"; Filename: "{app}\dv-launcher.exe"; IconFilename: "{app}\logo.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\dv-launcher.exe"; Description: "{cm:LaunchProgram,Digital Vigital}"; Flags: nowait postinstall skipifsilent

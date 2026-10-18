@@ -358,6 +358,7 @@ pub fn open_mods_folder<P: AsRef<Path>>(mods_dir: P) -> std::io::Result<()> {
 }
 
 /// Ensure both instance_dir/mods and game_dir/mods exist and synchronize any mods placed in either.
+/// Prefers instant NTFS/filesystem hard links to eliminate duplicate disk space usage.
 pub fn sync_instance_mods<P: AsRef<Path>, Q: AsRef<Path>>(inst_dir: P, game_dir: Q) {
     let mods1 = inst_dir.as_ref().join("mods");
     let mods2 = game_dir.as_ref().join("mods");
@@ -368,7 +369,9 @@ pub fn sync_instance_mods<P: AsRef<Path>, Q: AsRef<Path>>(inst_dir: P, game_dir:
         for entry in entries.flatten() {
             let target = mods2.join(entry.file_name());
             if !target.exists() && entry.path().is_file() {
-                let _ = fs::copy(entry.path(), target);
+                if fs::hard_link(entry.path(), &target).is_err() {
+                    let _ = fs::copy(entry.path(), target);
+                }
             }
         }
     }
@@ -377,7 +380,9 @@ pub fn sync_instance_mods<P: AsRef<Path>, Q: AsRef<Path>>(inst_dir: P, game_dir:
         for entry in entries.flatten() {
             let target = mods1.join(entry.file_name());
             if !target.exists() && entry.path().is_file() {
-                let _ = fs::copy(entry.path(), target);
+                if fs::hard_link(entry.path(), &target).is_err() {
+                    let _ = fs::copy(entry.path(), target);
+                }
             }
         }
     }

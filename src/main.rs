@@ -245,17 +245,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         drop(cm);
                         drop(im);
 
-                        if on_launch == "close" {
-                            info!("Exiting launcher completely per Settings (On-Launch: Close)");
-                            std::process::exit(0);
-                        } else if on_launch == "hide" {
-                            info!("Minimizing background memory overhead: hiding launcher window during gameplay");
+                        if on_launch == "close" || on_launch == "hide" {
+                            info!("Hiding launcher window during gameplay (On-Launch: {})", on_launch);
                             let ui_hide = ui_w.clone();
                             let _ = slint::invoke_from_event_loop(move || {
                                 if let Some(ui) = ui_hide.upgrade() {
                                     let _ = ui.window().hide();
                                 }
                             });
+                            #[cfg(target_os = "windows")]
+                            trim_process_memory();
                         }
                     }
                     ProcessState::Exited(_) | ProcessState::Crashed(_) | ProcessState::Stopped => {
@@ -270,8 +269,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let ui_show = ui_w.clone();
                         let _ = slint::invoke_from_event_loop(move || {
                             if let Some(ui) = ui_show.upgrade() {
-                                let _ = ui.window().set_minimized(false);
                                 let _ = ui.window().show();
+                                let _ = ui.window().set_minimized(false);
+                                #[cfg(target_os = "windows")]
+                                restore_windows_window();
                             }
                         });
                     }
@@ -531,6 +532,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let command_args = LaunchArgumentBuilder::build_command_args(&launch_ctx);
                 let gpu_id = config_clone.selected_gpu.unwrap_or_else(|| "auto".to_string());
+                GpuDetector::configure_windows_gpu_preference(&launch_ctx.java_executable, &gpu_id);
                 let gpu_env = GpuDetector::get_env_vars_for_gpu(&gpu_id);
                 if let Err(e) = sup.launch_with_env(command_args, game_dir, gpu_env).await {
                     error!("Launch failed: {}", e);
@@ -2037,19 +2039,52 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         open_browser(branding::WEBSITE_URL);
     });
 
-    // Run Slint native event loop
-    main_window.run()?;
+    // Handle close requested: quit event loop when user closes the window via 'X'
+    main_window.window().on_close_requested(move || {
+        let _ = slint::quit_event_loop();
+        slint::CloseRequestResponse::HideWindow
+    });
+
+    // Run Slint event loop until explicit quit, allowing window to be hidden and restored during gameplay
+    main_window.show()?;
+    slint::run_event_loop_until_quit()?;
     Ok(())
 }
 
 fn open_browser(url: &str) {
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
-        let mut cmd = std::process::Command::new("rundll32");
-        cmd.args(["url.dll,FileProtocolHandler", url]);
-        cmd.creation_flags(0x08000000);
-        let _ = cmd.spawn();
+        #[link(name = "shell32")]
+        extern "system" {
+            fn ShellExecuteW(
+                hwnd: *mut std::ffi::c_void,
+                lpOperation: *const u16,
+                lpFile: *const u16,
+                lpParameters: *const u16,
+                lpDirectory: *const u16,
+                nShowCmd: i32,
+            ) -> *mut std::ffi::c_void;
+        }
+        let op: Vec<u16> = "open\0".encode_utf16().collect();
+        let file: Vec<u16> = format!("{}\0", url).encode_utf16().collect();
+        unsafe {
+            let res = ShellExecuteW(
+                std::ptr::null_mut(),
+                op.as_ptr(),
+                file.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                1, // SW_SHOWNORMAL
+            );
+            if (res as usize) <= 32 {
+                // Fallback to rundll32 if ShellExecuteW fails
+                use std::os::windows::process::CommandExt;
+                let mut cmd = std::process::Command::new("rundll32");
+                cmd.args(["url.dll,FileProtocolHandler", url]);
+                cmd.creation_flags(0x08000000);
+                let _ = cmd.spawn();
+            }
+        }
     }
     #[cfg(target_os = "macos")]
     let _ = std::process::Command::new("open").arg(url).spawn();
@@ -2329,3 +2364,58 @@ fn handle_download_progress(ui: &MainWindow, prog: &DownloadProgress) {
     });
     ui.set_download_history(ModelRc::new(VecModel::from(history)));
 }
+
+#[cfg(target_os = "windows")]
+fn trim_process_memory() {
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetCurrentProcess() -> *mut std::ffi::c_void;
+        fn SetProcessWorkingSetSize(
+            hProcess: *mut std::ffi::c_void,
+            dwMinimumWorkingSetSize: usize,
+            dwMaximumWorkingSetSize: usize,
+        ) -> i32;
+    }
+    unsafe {
+        let _ = SetProcessWorkingSetSize(GetCurrentProcess(), usize::MAX, usize::MAX);
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn restore_windows_window() {
+    #[link(name = "user32")]
+    extern "system" {
+        fn EnumWindows(
+            lpEnumFunc: extern "system" fn(*mut std::ffi::c_void, isize) -> i32,
+            lParam: isize,
+        ) -> i32;
+        fn GetWindowThreadProcessId(hWnd: *mut std::ffi::c_void, lpdwProcessId: *mut u32) -> u32;
+        fn ShowWindow(hWnd: *mut std::ffi::c_void, nCmdShow: i32) -> i32;
+        fn SetForegroundWindow(hWnd: *mut std::ffi::c_void) -> i32;
+        fn BringWindowToTop(hWnd: *mut std::ffi::c_void) -> i32;
+    }
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn GetCurrentProcessId() -> u32;
+    }
+
+    extern "system" fn enum_proc(hwnd: *mut std::ffi::c_void, lparam: isize) -> i32 {
+        unsafe {
+            let mut proc_id = 0u32;
+            GetWindowThreadProcessId(hwnd, &mut proc_id);
+            if proc_id == (lparam as u32) {
+                ShowWindow(hwnd, 9); // SW_RESTORE
+                ShowWindow(hwnd, 5); // SW_SHOW
+                BringWindowToTop(hwnd);
+                SetForegroundWindow(hwnd);
+            }
+        }
+        1
+    }
+
+    unsafe {
+        let current_pid = GetCurrentProcessId();
+        EnumWindows(enum_proc, current_pid as isize);
+    }
+}
+

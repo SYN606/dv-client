@@ -349,7 +349,18 @@ impl ConfigManager {
             file.flush()?;
         }
 
-        fs::rename(&tmp_path, &self.config_file)?;
+        let mut renamed = fs::rename(&tmp_path, &self.config_file);
+        if renamed.is_err() && cfg!(target_os = "windows") {
+            for _ in 0..5 {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                let _ = fs::remove_file(&self.config_file);
+                renamed = fs::rename(&tmp_path, &self.config_file);
+                if renamed.is_ok() {
+                    break;
+                }
+            }
+        }
+        renamed?;
         info!("Saved configuration to {:?}", self.config_file);
         Ok(())
     }

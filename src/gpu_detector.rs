@@ -267,25 +267,45 @@ impl GpuDetector {
         use std::os::windows::process::CommandExt;
         let mut raw_names: Vec<String> = Vec::new();
 
-        // 1. Primary Method: PowerShell Get-CimInstance (fast and reliable on modern Win10/Win11)
-        let mut ps_cmd = Command::new("powershell");
-        ps_cmd.args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "Get-CimInstance Win32_VideoController | Select-Object -ExpandProperty Name",
-        ]);
-        ps_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-        if let Ok(output) = ps_cmd.output() {
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                for line in stdout.lines() {
-                    let trimmed = line.trim();
-                    if !trimmed.is_empty() {
-                        raw_names.push(trimmed.to_string());
-                    }
+        // 1. Primary Method: Instant Win32 EnumDisplayDevicesW (0ms latency, zero process spawning)
+        #[repr(C)]
+        #[allow(non_snake_case)]
+        struct DISPLAY_DEVICEW {
+            cb: u32,
+            DeviceName: [u16; 32],
+            DeviceString: [u16; 128],
+            StateFlags: u32,
+            DeviceID: [u16; 128],
+            DeviceKey: [u16; 128],
+        }
+
+        #[link(name = "user32")]
+        extern "system" {
+            fn EnumDisplayDevicesW(
+                lpDevice: *const u16,
+                iDevNum: u32,
+                lpDisplayDevice: *mut DISPLAY_DEVICEW,
+                dwFlags: u32,
+            ) -> i32;
+        }
+
+        let mut i = 0u32;
+        loop {
+            let mut dev: DISPLAY_DEVICEW = unsafe { std::mem::zeroed() };
+            dev.cb = std::mem::size_of::<DISPLAY_DEVICEW>() as u32;
+            let success = unsafe { EnumDisplayDevicesW(std::ptr::null(), i, &mut dev, 0) };
+            if success == 0 || i > 32 {
+                break;
+            }
+            // StateFlags & 0x8 is DISPLAY_DEVICE_MIRRORING_DRIVER (virtual mirror drivers)
+            if (dev.StateFlags & 8) == 0 {
+                let len = dev.DeviceString.iter().position(|&c| c == 0).unwrap_or(128);
+                let name = String::from_utf16_lossy(&dev.DeviceString[..len]).trim().to_string();
+                if !name.is_empty() && !raw_names.contains(&name) {
+                    raw_names.push(name);
                 }
             }
+            i += 1;
         }
 
         // 2. Fallback Method: Windows Registry Display Class query
@@ -316,22 +336,6 @@ impl GpuDetector {
             }
         }
 
-        // 3. Fallback Method: Legacy WMIC
-        if raw_names.is_empty() {
-            let mut wmic_cmd = Command::new("wmic");
-            wmic_cmd.args(["path", "win32_VideoController", "get", "name"]);
-            wmic_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-            if let Ok(output) = wmic_cmd.output() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                for line in stdout.lines().skip(1) {
-                    let trimmed = line.trim();
-                    if !trimmed.is_empty() {
-                        raw_names.push(trimmed.to_string());
-                    }
-                }
-            }
-        }
-
         // Parse and deduplicate found devices
         for raw in raw_names {
             if let Some(device) = Self::parse_gpu_device(&raw) {
@@ -340,6 +344,49 @@ impl GpuDetector {
                     devices.push(device);
                 }
             }
+        }
+    }
+
+    /// On Windows 10/11, register the Java executable with the DirectX graphics scheduler
+    /// in HKCU\Software\Microsoft\DirectX\UserGpuPreferences so that the OS GPU scheduler
+    /// automatically routes Minecraft to the discrete or integrated GPU.
+    pub fn configure_windows_gpu_preference<P: AsRef<std::path::Path>>(java_exe: P, gpu_id: &str) {
+        #[cfg(target_os = "windows")]
+        {
+            use std::os::windows::process::CommandExt;
+            let path_str = dunce::simplified(java_exe.as_ref()).to_string_lossy().to_string();
+            let pref_val = if gpu_id.to_lowercase().contains("discrete")
+                || gpu_id.to_lowercase().contains("nvidia")
+                || gpu_id.to_lowercase().contains("amd")
+            {
+                "GpuPreference=2;" // High Performance (Discrete GPU)
+            } else if gpu_id.to_lowercase().contains("integrated")
+                || gpu_id.to_lowercase().contains("intel")
+            {
+                "GpuPreference=1;" // Power Saving (Integrated GPU)
+            } else {
+                return;
+            };
+
+            let mut reg_cmd = Command::new("reg");
+            reg_cmd.args([
+                "add",
+                r"HKCU\Software\Microsoft\DirectX\UserGpuPreferences",
+                "/v",
+                &path_str,
+                "/t",
+                "REG_SZ",
+                "/d",
+                pref_val,
+                "/f",
+            ]);
+            reg_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+            let _ = reg_cmd.output();
+            info!("Registered Windows DirectX GPU preference: {} -> {}", path_str, pref_val);
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = (java_exe, gpu_id);
         }
     }
 

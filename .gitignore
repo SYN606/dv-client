@@ -17,6 +17,7 @@ Cargo.lock.dist
 *.swo
 *~
 *.bak
+.vs 
 
 # OS generated files
 .DS_Store

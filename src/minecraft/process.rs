@@ -124,6 +124,11 @@ impl ProcessSupervisor {
 
         let mut child = cmd.spawn()?;
 
+        #[cfg(target_os = "windows")]
+        if let Some(pid) = child.id() {
+            assign_child_to_kill_on_close_job(pid);
+        }
+
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
 
@@ -207,5 +212,78 @@ impl ProcessSupervisor {
         }
         self.is_running.store(false, Ordering::SeqCst);
         let _ = self.state_tx.send(ProcessState::Stopped);
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn assign_child_to_kill_on_close_job(pid: u32) {
+    #[repr(C)]
+    struct IO_COUNTERS {
+        read_operation_count: u64,
+        write_operation_count: u64,
+        other_operation_count: u64,
+        read_transfer_count: u64,
+        write_transfer_count: u64,
+        other_transfer_count: u64,
+    }
+
+    #[repr(C)]
+    struct JOBOBJECT_BASIC_LIMIT_INFORMATION {
+        per_process_user_time_limit: i64,
+        per_job_user_time_limit: i64,
+        limit_flags: u32,
+        minimum_working_set_size: usize,
+        maximum_working_set_size: usize,
+        active_process_limit: u32,
+        affinity: usize,
+        priority_class: u32,
+        scheduling_class: u32,
+    }
+
+    #[repr(C)]
+    struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION {
+        basic_limit_information: JOBOBJECT_BASIC_LIMIT_INFORMATION,
+        io_info: IO_COUNTERS,
+        process_memory_limit: usize,
+        job_memory_limit: usize,
+        peak_process_memory_limit: usize,
+        peak_job_memory_limit: usize,
+    }
+
+    #[link(name = "kernel32")]
+    extern "system" {
+        fn CreateJobObjectW(lpJobAttributes: *const std::ffi::c_void, lpName: *const u16) -> *mut std::ffi::c_void;
+        fn SetInformationJobObject(
+            hJob: *mut std::ffi::c_void,
+            JobObjectInfoClass: i32,
+            lpJobObjectInfo: *const std::ffi::c_void,
+            cbJobObjectInfoLength: u32,
+        ) -> i32;
+        fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: i32, dwProcessId: u32) -> *mut std::ffi::c_void;
+        fn AssignProcessToJobObject(hJob: *mut std::ffi::c_void, hProcess: *mut std::ffi::c_void) -> i32;
+        fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
+    }
+
+    unsafe {
+        let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+        if !job.is_null() {
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.basic_limit_information.limit_flags = 0x00002000; // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+            let set_res = SetInformationJobObject(
+                job,
+                9, // JobObjectExtendedLimitInformation
+                &info as *const _ as *const std::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            if set_res != 0 {
+                // PROCESS_SET_QUOTA (0x0100) | PROCESS_TERMINATE (0x0001)
+                let proc = OpenProcess(0x0100 | 0x0001, 0, pid);
+                if !proc.is_null() {
+                    let _ = AssignProcessToJobObject(job, proc);
+                    CloseHandle(proc);
+                }
+            }
+            let _ = job;
+        }
     }
 }

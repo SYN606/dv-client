@@ -178,7 +178,7 @@ impl LaunchArgumentBuilder {
 
         // 6. Standard launcher brand identifiers
         args.push("-Dminecraft.launcher.brand=DigitalVigital".to_string());
-        args.push("-Dminecraft.launcher.version=1.0.0".to_string());
+        args.push(format!("-Dminecraft.launcher.version={}", crate::branding::APP_VERSION));
 
         // 6. Classpath
         let classpath = Self::build_classpath(ctx);

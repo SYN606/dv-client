@@ -203,6 +203,37 @@ impl JavaDetector {
                 );
             }
 
+            // 3. Scan Windows Registry for official JDK installations (Adoptium, Oracle, Microsoft)
+            let reg_keys = [
+                r"HKLM\SOFTWARE\JavaSoft\JDK",
+                r"HKLM\SOFTWARE\JavaSoft\Java Development Kit",
+                r"HKLM\SOFTWARE\JavaSoft\Java Runtime Environment",
+                r"HKLM\SOFTWARE\Eclipse Adoptium\JDK",
+                r"HKLM\SOFTWARE\Microsoft\JDK",
+            ];
+            for key in reg_keys {
+                use std::os::windows::process::CommandExt;
+                let mut cmd = Command::new("reg");
+                cmd.args(["query", key, "/s", "/v", "JavaHome"]);
+                cmd.creation_flags(0x08000000);
+                if let Ok(output) = cmd.output() {
+                    if output.status.success() {
+                        let stdout = String::from_utf8_lossy(&output.stdout);
+                        for line in stdout.lines() {
+                            if line.contains("JavaHome") && line.contains("REG_SZ") {
+                                if let Some(val) = line.split("REG_SZ").nth(1) {
+                                    let home_path = val.trim();
+                                    let java_exe = dunce::simplified(&PathBuf::from(home_path).join("bin").join("java.exe")).to_path_buf();
+                                    if java_exe.exists() && !candidate_paths.contains(&java_exe) {
+                                        candidate_paths.push(java_exe);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             for root in win_roots {
                 if root.exists() {
                     if let Ok(entries) = std::fs::read_dir(&root) {
@@ -279,8 +310,13 @@ impl JavaDetector {
 
     /// Prompt user with native file dialog to manually select a Java executable.
     pub fn pick_java_with_dialog() -> Option<JavaInstallation> {
-        let dialog = rfd::FileDialog::new()
+        let mut dialog = rfd::FileDialog::new()
             .set_title("Select Java Executable (java / java.exe)");
+
+        #[cfg(target_os = "windows")]
+        {
+            dialog = dialog.add_filter("Java Executable (*.exe)", &["exe"]);
+        }
 
         if let Some(path) = dialog.pick_file() {
             Self::inspect_executable(path)

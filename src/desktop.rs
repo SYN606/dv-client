@@ -5,6 +5,7 @@
 //! This ensures window managers (such as KDE Plasma KWin and GNOME Shell)
 //! properly associate the Wayland `app_id` ("dv-launcher") with the DV logo.
 
+#[cfg(target_os = "linux")]
 use std::path::PathBuf;
 use tracing::info;
 
@@ -71,5 +72,29 @@ pub fn ensure_desktop_integration() {
             .output();
 
         info!("Desktop integration verified: registered Wayland app_id '{DESKTOP_APP_ID}' and XDG icons");
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        #[link(name = "shell32")]
+        extern "system" {
+            fn SetCurrentProcessExplicitAppUserModelID(AppID: *const u16) -> i32;
+        }
+        let aumid: Vec<u16> = "DigitalVigital.Launcher\0".encode_utf16().collect();
+        unsafe {
+            let _ = SetCurrentProcessExplicitAppUserModelID(aumid.as_ptr());
+        }
+
+        if let Some(data_dir) = dirs::data_dir() {
+            let app_dir = data_dir.join("DigitalVigital");
+            let _ = std::fs::create_dir_all(&app_dir);
+            let ico_path = app_dir.join("logo.ico");
+            if !ico_path.exists() {
+                let ico_bytes = include_bytes!("../assets/logo.ico");
+                let _ = std::fs::write(&ico_path, ico_bytes);
+            }
+        }
+
+        info!("Windows desktop integration initialized: registered AppUserModelID 'DigitalVigital.Launcher'");
     }
 }

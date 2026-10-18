@@ -1,6 +1,6 @@
 [package]
 name = "dv-launcher"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 authors = ["Digital Vigital"]
 description = "High-performance, privacy-first desktop Minecraft launcher powered by Rust and Slint"
@@ -44,3 +44,11 @@ tempfile = "3.17"
 
 [build-dependencies]
 slint-build = "1.18.1"
+winres = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

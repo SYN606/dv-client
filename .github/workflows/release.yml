@@ -58,11 +58,17 @@ jobs:
         run: |
           makensis packaging\windows\DigitalVigital.nsi
 
-      - name: Upload Windows Installer Artifact
+      - name: Package Portable Windows ZIP Archive
+        run: |
+          Compress-Archive -Path target\release\dv-launcher.exe, assets\logo.png, assets\logo.ico, README.md -DestinationPath dist\DigitalVigital-v1.0.0-windows-x64-portable.zip
+
+      - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: windows-installer
-          path: dist/*.exe
+          name: windows-packages
+          path: |
+            dist/*.exe
+            dist/*.zip
 
   publish-github-release:
     needs: [build-linux-packages, build-windows-installer]
@@ -75,10 +81,10 @@ jobs:
           name: linux-packages
           path: dist
 
-      - name: Download Windows Installer
+      - name: Download Windows Packages
         uses: actions/download-artifact@v4
         with:
-          name: windows-installer
+          name: windows-packages
           path: dist
 
       - name: Create GitHub Release
@@ -89,6 +95,7 @@ jobs:
             dist/*.deb
             dist/*.rpm
             dist/*.exe
+            dist/*.zip
           generate_release_notes: true
           draft: false
           prerelease: false

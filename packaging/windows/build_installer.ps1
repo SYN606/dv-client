@@ -18,26 +18,57 @@ if (-not (Test-Path "$ProjectRoot\target\release\dv-launcher.exe")) {
 
 # 2. Check for NSIS compiler
 $MakensisPath = Get-Command "makensis.exe" -ErrorAction SilentlyContinue
+if (-not $MakensisPath) {
+    $candidatePaths = @(
+        "$env:LOCALAPPDATA\Programs\NSIS\nsis-3.10\makensis.exe",
+        "C:\Program Files (x86)\NSIS\makensis.exe",
+        "C:\Program Files\NSIS\makensis.exe"
+    )
+    foreach ($cand in $candidatePaths) {
+        if (Test-Path $cand) {
+            $MakensisPath = $cand
+            break
+        }
+    }
+}
 
 New-Item -ItemType Directory -Force -Path "$ProjectRoot\dist" | Out-Null
 
 if ($MakensisPath) {
     Write-Host "[2/3] Compiling NSIS installer with multi-drive selector..." -ForegroundColor Green
-    & makensis.exe "$ProjectRoot\packaging\windows\DigitalVigital.nsi"
-    Write-Host "[3/3] Windows Installer successfully created at dist\DigitalVigital-Setup-1.0.0.exe!" -ForegroundColor Green
+    & $MakensisPath "$ProjectRoot\packaging\windows\DigitalVigital.nsi"
+    Write-Host "[3/3] Windows Installer successfully created at dist\DigitalVigital-Setup-1.1.0.exe!" -ForegroundColor Green
+
+    Write-Host "[Bonus] Generating portable ZIP archive..." -ForegroundColor Cyan
+    Compress-Archive -Path "$ProjectRoot\target\release\dv-launcher.exe", "$ProjectRoot\assets\logo.png", "$ProjectRoot\assets\logo.ico", "$ProjectRoot\README.md" -DestinationPath "$ProjectRoot\dist\DigitalVigital-v1.1.0-windows-x64-portable.zip" -Force
+    Write-Host "Portable ZIP created at dist\DigitalVigital-v1.1.0-windows-x64-portable.zip!" -ForegroundColor Green
     exit 0
 }
 
 # 3. Check for Inno Setup compiler
 $InnoPath = Get-Command "iscc.exe" -ErrorAction SilentlyContinue
-if (-not $InnoPath -and (Test-Path "C:\Program Files (x86)\Inno Setup 6\iscc.exe")) {
-    $InnoPath = "C:\Program Files (x86)\Inno Setup 6\iscc.exe"
+if (-not $InnoPath) {
+    $innoCandidates = @(
+        "C:\Program Files (x86)\Inno Setup 6\iscc.exe",
+        "C:\Program Files\Inno Setup 6\iscc.exe",
+        "$env:LOCALAPPDATA\Programs\Inno Setup 6\iscc.exe"
+    )
+    foreach ($c in $innoCandidates) {
+        if (Test-Path $c) {
+            $InnoPath = $c
+            break
+        }
+    }
 }
 
 if ($InnoPath) {
     Write-Host "[2/3] Compiling Inno Setup installer with multi-drive selector..." -ForegroundColor Green
     & $InnoPath "$ProjectRoot\packaging\windows\DigitalVigital.iss"
-    Write-Host "[3/3] Windows Installer successfully created at dist\DigitalVigital-Setup-1.0.0.exe!" -ForegroundColor Green
+    Write-Host "[3/3] Windows Installer successfully created at dist\DigitalVigital-Setup-1.1.0.exe!" -ForegroundColor Green
+
+    Write-Host "[Bonus] Generating portable ZIP archive..." -ForegroundColor Cyan
+    Compress-Archive -Path "$ProjectRoot\target\release\dv-launcher.exe", "$ProjectRoot\assets\logo.png", "$ProjectRoot\assets\logo.ico", "$ProjectRoot\README.md" -DestinationPath "$ProjectRoot\dist\DigitalVigital-v1.1.0-windows-x64-portable.zip" -Force
+    Write-Host "Portable ZIP created at dist\DigitalVigital-v1.1.0-windows-x64-portable.zip!" -ForegroundColor Green
     exit 0
 }
 
