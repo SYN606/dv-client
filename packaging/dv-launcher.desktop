@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Digital Vigital
+GenericName=Minecraft Launcher
+Comment=High-performance, minimal, and privacy-first Minecraft launcher in native Rust
+Exec=dv-launcher %U
+Icon=dv-launcher
+Terminal=false
+Categories=Game;ActionGame;AdventureGame;
+StartupWMClass=dv-launcher
+Keywords=game;minecraft;dv;digitalvigital;launcher;
+MimeType=x-scheme-handler/minecraft;

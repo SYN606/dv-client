@@ -1,0 +1,11 @@
+Package: dv-launcher
+Version: 1.0.0
+Section: games
+Priority: optional
+Architecture: amd64
+Maintainer: Digital Vigital <contact@digitalvigital.com>
+Homepage: https://digitalvigital.com
+Description: High-performance, minimal, and privacy-first Minecraft launcher in native Rust
+ Digital Vigital (DV) is an ultra-fast, native Minecraft launcher written in
+ Rust with a sleek Slint GUI. It offers direct JVM launching, background RAM
+ minimization on game start, isolated mod profile management, and zero telemetry.

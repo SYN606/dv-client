@@ -27,3 +27,7 @@ desktop.ini
 /instances/
 /logs/
 /.digitalvigital/
+
+# Distribution packages & packaging tools
+/dist/
+packaging/appimagetool
