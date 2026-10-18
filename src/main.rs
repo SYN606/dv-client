@@ -438,6 +438,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .join(&inst.minecraft_version)
                     .join(format!("{}.jar", inst.minecraft_version));
 
+                // Ensure universal player skin & cape resource pack is synchronized and enabled in game options
+                let _ = dv_launcher::skins::ensure_in_game_skin_pack(&game_dir, &account.username);
+
                 let launch_ctx = LaunchContext {
                     version_package: version_pkg,
                     instance_dir: inst_dir.clone(),
@@ -1175,14 +1178,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .flatten();
 
                 if let Some(src_path) = picked_file {
-                    let (active_user, is_ms) = {
+                    let (active_user, is_ms, instances_dir) = {
                         let mut a = auth.lock().await;
                         let cm = cfg.lock().await;
                         let acc = a.get_active_account(cm.config.active_account_id.as_deref());
-                        (acc.username.clone(), acc.account_type == "microsoft")
+                        (acc.username.clone(), acc.account_type == "microsoft", cm.config.instances_dir())
                     };
 
                     let _ = dv_launcher::skins::save_custom_skin(&active_user, &src_path);
+                    dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
                     dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
                 }
             });
@@ -1212,14 +1216,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .flatten();
 
                 if let Some(src_path) = picked_file {
-                    let (active_user, is_ms) = {
+                    let (active_user, is_ms, instances_dir) = {
                         let mut a = auth.lock().await;
                         let cm = cfg.lock().await;
                         let acc = a.get_active_account(cm.config.active_account_id.as_deref());
-                        (acc.username.clone(), acc.account_type == "microsoft")
+                        (acc.username.clone(), acc.account_type == "microsoft", cm.config.instances_dir())
                     };
 
                     let _ = dv_launcher::skins::save_custom_cape(&active_user, &src_path);
+                    dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
                     dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
                 }
             });
@@ -1238,14 +1243,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ui_w = ui_weak.clone();
 
             tokio::spawn(async move {
-                let (active_user, is_ms) = {
+                let (active_user, is_ms, instances_dir) = {
                     let mut a = auth.lock().await;
                     let cm = cfg.lock().await;
                     let acc = a.get_active_account(cm.config.active_account_id.as_deref());
-                    (acc.username.clone(), acc.account_type == "microsoft")
+                    (acc.username.clone(), acc.account_type == "microsoft", cm.config.instances_dir())
                 };
 
                 dv_launcher::skins::reset_player_skin(&active_user);
+                dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
                 dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
             });
         });
@@ -1263,14 +1269,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ui_w = ui_weak.clone();
 
             tokio::spawn(async move {
-                let (active_user, is_ms) = {
+                let (active_user, is_ms, instances_dir) = {
                     let mut a = auth.lock().await;
                     let cm = cfg.lock().await;
                     let acc = a.get_active_account(cm.config.active_account_id.as_deref());
-                    (acc.username.clone(), acc.account_type == "microsoft")
+                    (acc.username.clone(), acc.account_type == "microsoft", cm.config.instances_dir())
                 };
 
                 dv_launcher::skins::reset_player_cape(&active_user);
+                dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
                 dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
             });
         });
@@ -1288,14 +1295,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ui_w = ui_weak.clone();
 
             tokio::spawn(async move {
-                let (active_user, is_ms) = {
+                let (active_user, is_ms, instances_dir) = {
                     let mut a = auth.lock().await;
                     let cm = cfg.lock().await;
                     let acc = a.get_active_account(cm.config.active_account_id.as_deref());
-                    (acc.username.clone(), acc.account_type == "microsoft")
+                    (acc.username.clone(), acc.account_type == "microsoft", cm.config.instances_dir())
                 };
 
                 dv_launcher::skins::ensure_preset_capes();
+                dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
                 dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
             });
         });
@@ -1750,9 +1758,15 @@ async fn dispatch_refresh_player_appearance(
             if let Ok(skin_img) = slint::Image::load_from_path(&skin_path) {
                 ui.set_player_skin_image(skin_img);
                 ui.set_has_player_skin(true);
-                ui.set_player_skin_name(SharedString::from(
-                    skin_path.file_stem().unwrap_or_default().to_string_lossy().as_ref(),
-                ));
+                let stem = skin_path.file_stem().unwrap_or_default().to_string_lossy();
+                let skin_display = if stem.contains("universal") {
+                    "Universal Custom Skin (All Players)".to_string()
+                } else if stem.contains("steve") {
+                    "Default Steve (Universal)".to_string()
+                } else {
+                    format!("Universal ({})", stem)
+                };
+                ui.set_player_skin_name(SharedString::from(skin_display));
             } else {
                 ui.set_has_player_skin(false);
             }
@@ -1761,7 +1775,15 @@ async fn dispatch_refresh_player_appearance(
                 if let Ok(cape_img) = slint::Image::load_from_path(cp) {
                     ui.set_player_cape_image(cape_img);
                     ui.set_has_player_cape(true);
-                    ui.set_player_cape_name(SharedString::from("DV Crimson Cape"));
+                    let stem = cp.file_stem().unwrap_or_default().to_string_lossy();
+                    let cape_display = if stem.contains("universal") {
+                        "Universal Custom Cape".to_string()
+                    } else if stem.contains("crimson") {
+                        "DV Crimson Cape (Universal)".to_string()
+                    } else {
+                        format!("Universal Cape ({})", stem)
+                    };
+                    ui.set_player_cape_name(SharedString::from(cape_display));
                 } else {
                     ui.set_has_player_cape(false);
                     ui.set_player_cape_name(SharedString::from("None"));

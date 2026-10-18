@@ -48,6 +48,24 @@ pub fn get_capes_dir() -> PathBuf {
     dir
 }
 
+/// Universal skin path shared across all player profiles.
+pub fn get_universal_skin_path() -> PathBuf {
+    get_skins_dir().join("universal_skin_raw.png")
+}
+
+pub fn get_universal_skin_preview_path() -> PathBuf {
+    get_skins_dir().join("universal_skin_preview.png")
+}
+
+/// Universal cape path shared across all player profiles.
+pub fn get_universal_cape_path() -> PathBuf {
+    get_capes_dir().join("universal_cape.png")
+}
+
+pub fn get_universal_cape_preview_path() -> PathBuf {
+    get_capes_dir().join("universal_cape_preview.png")
+}
+
 /// Composites a crisp 160x320 front-view player model preview from a 64x64 or 64x32 skin PNG.
 /// Includes base body parts and second-layer overlays (hat, jacket, sleeves, pants).
 pub fn render_skin_preview<P: AsRef<Path>>(skin_path: P) -> Result<RgbaImage, SkinError> {
@@ -298,14 +316,15 @@ pub fn ensure_default_steve_skin() -> PathBuf {
 }
 
 /// Fetch a player skin preview for display in the launcher.
-/// If user has a local custom skin uploaded, renders that.
-/// Otherwise attempts to fetch from official avatar API, falling back to default Steve.
+/// Checks user-specific custom skin, universal skin, remote MC-Heads, and falls back to default Steve.
 pub async fn get_or_fetch_player_skin(username: &str, is_microsoft: bool) -> PathBuf {
     let skins_dir = get_skins_dir();
     let preview_path = skins_dir.join(format!("{}_preview.png", username));
     let raw_custom_skin = skins_dir.join(format!("{}_raw.png", username));
+    let universal_raw = get_universal_skin_path();
+    let universal_preview = get_universal_skin_preview_path();
 
-    // 1. If custom skin uploaded, render and cache preview
+    // 1. If player-specific custom skin uploaded, use that
     if raw_custom_skin.exists() {
         if let Ok(preview) = render_skin_preview(&raw_custom_skin) {
             let _ = preview.save(&preview_path);
@@ -313,12 +332,23 @@ pub async fn get_or_fetch_player_skin(username: &str, is_microsoft: bool) -> Pat
         }
     }
 
-    // 2. If preview already exists and is not empty, use it
+    // 2. If universal skin exists, display universally for every player
+    if universal_raw.exists() {
+        if universal_preview.exists() && fs::metadata(&universal_preview).map(|m| m.len() > 0).unwrap_or(false) {
+            return universal_preview;
+        }
+        if let Ok(preview) = render_skin_preview(&universal_raw) {
+            let _ = preview.save(&universal_preview);
+            return universal_preview;
+        }
+    }
+
+    // 3. If preview already exists and is not empty, use it
     if preview_path.exists() && fs::metadata(&preview_path).map(|m| m.len() > 0).unwrap_or(false) {
         return preview_path;
     }
 
-    // 3. For Microsoft or recognized usernames, fetch 3D body render from MC-Heads
+    // 4. For Microsoft or recognized usernames, fetch 3D body render from MC-Heads
     if is_microsoft || (!username.is_empty() && username != "DVPlayer" && username != "Player") {
         let client = reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(4))
@@ -339,7 +369,7 @@ pub async fn get_or_fetch_player_skin(username: &str, is_microsoft: bool) -> Pat
         }
     }
 
-    // 4. Default Steve fallback
+    // 5. Default Steve fallback
     let steve_skin = ensure_default_steve_skin();
     if let Ok(preview) = render_skin_preview(&steve_skin) {
         let _ = preview.save(&preview_path);
@@ -350,21 +380,37 @@ pub async fn get_or_fetch_player_skin(username: &str, is_microsoft: bool) -> Pat
 }
 
 /// Fetch a player cape preview for display.
+/// Checks user-specific custom cape, universal cape, or built-in presets.
 pub fn get_or_create_cape_preview(username: &str, preset: Option<&str>) -> Option<PathBuf> {
     let capes_dir = get_capes_dir();
     let custom_cape = capes_dir.join(format!("{}_cape.png", username));
+    let universal_cape = get_universal_cape_path();
     let preview_path = capes_dir.join(format!("{}_cape_preview.png", username));
+    let universal_preview = get_universal_cape_preview_path();
 
-    let cape_file = if custom_cape.exists() {
-        custom_cape
-    } else {
-        match preset.unwrap_or("crimson") {
-            "crimson" | "default" => ensure_preset_capes(),
-            "none" => return None,
-            _ => ensure_preset_capes(),
+    if custom_cape.exists() {
+        if let Ok(preview) = render_cape_preview(&custom_cape) {
+            let _ = preview.save(&preview_path);
+            return Some(preview_path);
         }
-    };
+    }
 
+    if universal_cape.exists() {
+        if universal_preview.exists() && fs::metadata(&universal_preview).map(|m| m.len() > 0).unwrap_or(false) {
+            return Some(universal_preview);
+        }
+        if let Ok(preview) = render_cape_preview(&universal_cape) {
+            let _ = preview.save(&universal_preview);
+            return Some(universal_preview);
+        }
+    }
+
+    let preset_choice = preset.unwrap_or("crimson");
+    if preset_choice == "none" {
+        return None;
+    }
+
+    let cape_file = ensure_preset_capes();
     if let Ok(preview) = render_cape_preview(&cape_file) {
         let _ = preview.save(&preview_path);
         Some(preview_path)
@@ -373,34 +419,42 @@ pub fn get_or_create_cape_preview(username: &str, preset: Option<&str>) -> Optio
     }
 }
 
-/// Save a newly uploaded custom skin file for the specified username.
+/// Save a newly uploaded custom skin file for the specified username and apply universally.
 pub fn save_custom_skin<P: AsRef<Path>>(username: &str, src_file: P) -> Result<PathBuf, SkinError> {
     let skins_dir = get_skins_dir();
     let raw_dest = skins_dir.join(format!("{}_raw.png", username));
     let preview_dest = skins_dir.join(format!("{}_preview.png", username));
+    let universal_raw = get_universal_skin_path();
+    let universal_preview = get_universal_skin_preview_path();
 
     fs::copy(src_file.as_ref(), &raw_dest)?;
+    let _ = fs::copy(src_file.as_ref(), &universal_raw);
 
     // Verify and render preview
     let preview = render_skin_preview(&raw_dest)?;
     preview.save(&preview_dest)?;
+    let _ = preview.save(&universal_preview);
 
-    info!("Saved custom skin for player {}: {}", username, raw_dest.display());
+    info!("Saved universal skin for player {} and all profiles: {}", username, raw_dest.display());
     Ok(preview_dest)
 }
 
-/// Save a newly uploaded custom cape file for the specified username.
+/// Save a newly uploaded custom cape file for the specified username and apply universally.
 pub fn save_custom_cape<P: AsRef<Path>>(username: &str, src_file: P) -> Result<PathBuf, SkinError> {
     let capes_dir = get_capes_dir();
     let raw_dest = capes_dir.join(format!("{}_cape.png", username));
     let preview_dest = capes_dir.join(format!("{}_cape_preview.png", username));
+    let universal_raw = get_universal_cape_path();
+    let universal_preview = get_universal_cape_preview_path();
 
     fs::copy(src_file.as_ref(), &raw_dest)?;
+    let _ = fs::copy(src_file.as_ref(), &universal_raw);
 
     let preview = render_cape_preview(&raw_dest)?;
     preview.save(&preview_dest)?;
+    let _ = preview.save(&universal_preview);
 
-    info!("Saved custom cape for player {}: {}", username, raw_dest.display());
+    info!("Saved universal cape for player {} and all profiles: {}", username, raw_dest.display());
     Ok(preview_dest)
 }
 
@@ -411,6 +465,8 @@ pub fn reset_player_skin(username: &str) {
     let preview_path = skins_dir.join(format!("{}_preview.png", username));
     let _ = fs::remove_file(raw_custom_skin);
     let _ = fs::remove_file(preview_path);
+    let _ = fs::remove_file(get_universal_skin_path());
+    let _ = fs::remove_file(get_universal_skin_preview_path());
 }
 
 /// Reset player cape back to none or default.
@@ -420,6 +476,138 @@ pub fn reset_player_cape(username: &str) {
     let preview_path = capes_dir.join(format!("{}_cape_preview.png", username));
     let _ = fs::remove_file(custom_cape);
     let _ = fs::remove_file(preview_path);
+    let _ = fs::remove_file(get_universal_cape_path());
+    let _ = fs::remove_file(get_universal_cape_preview_path());
+}
+
+/// Injects the Universal Player Skin & Cape into the Minecraft instance game directory.
+/// Builds a native resource pack overriding all player model variants (both legacy 1.7-1.19 and modern 1.20+)
+/// and automatically enables it in options.txt so every player sees their custom skin in-game.
+pub fn ensure_in_game_skin_pack<P: AsRef<Path>>(game_dir: P, username: &str) -> std::io::Result<()> {
+    let game_dir = game_dir.as_ref();
+    let rp_dir = game_dir.join("resourcepacks").join("DV_Universal_Skin");
+    let _ = fs::create_dir_all(&rp_dir);
+
+    // 1. Write pack.mcmeta with universal version support
+    let mcmeta_path = rp_dir.join("pack.mcmeta");
+    let mcmeta_content = r#"{
+  "pack": {
+    "pack_format": 34,
+    "supported_formats": {"min_inclusive": 1, "max_inclusive": 99},
+    "description": "Digital Vigital Universal Player Skin & Cape (Visible In-Game)"
+  }
+}"#;
+    let _ = fs::write(mcmeta_path, mcmeta_content);
+
+    // 2. Locate active skin file (player custom, universal, or steve fallback)
+    let skins_dir = get_skins_dir();
+    let user_skin = skins_dir.join(format!("{}_raw.png", username));
+    let universal_skin = get_universal_skin_path();
+    let active_skin_path = if user_skin.exists() {
+        user_skin
+    } else if universal_skin.exists() {
+        universal_skin
+    } else {
+        ensure_default_steve_skin()
+    };
+
+    // 3. Copy skin to all player model texture paths (legacy and 1.20+ modern default characters)
+    let entity_dir = rp_dir.join("assets").join("minecraft").join("textures").join("entity");
+    let player_dir = entity_dir.join("player");
+    let wide_dir = player_dir.join("wide");
+    let slim_dir = player_dir.join("slim");
+    let _ = fs::create_dir_all(&entity_dir);
+    let _ = fs::create_dir_all(&wide_dir);
+    let _ = fs::create_dir_all(&slim_dir);
+
+    // Legacy player textures
+    let _ = fs::copy(&active_skin_path, entity_dir.join("steve.png"));
+    let _ = fs::copy(&active_skin_path, entity_dir.join("alex.png"));
+
+    // Modern Minecraft 1.20+ all default player variants
+    let default_models = ["steve", "alex", "ari", "efe", "kai", "makena", "noor", "sunny", "zuri"];
+    for name in &default_models {
+        let _ = fs::copy(&active_skin_path, wide_dir.join(format!("{}.png", name)));
+        let _ = fs::copy(&active_skin_path, slim_dir.join(format!("{}.png", name)));
+    }
+
+    // 4. Locate active cape file and write to entity/cape.png
+    let capes_dir = get_capes_dir();
+    let user_cape = capes_dir.join(format!("{}_cape.png", username));
+    let universal_cape = get_universal_cape_path();
+    let active_cape_path = if user_cape.exists() {
+        Some(user_cape)
+    } else if universal_cape.exists() {
+        Some(universal_cape)
+    } else {
+        let crimson = capes_dir.join("dv_crimson.png");
+        if crimson.exists() {
+            Some(crimson)
+        } else {
+            None
+        }
+    };
+
+    if let Some(cp) = active_cape_path {
+        let _ = fs::copy(&cp, entity_dir.join("cape.png"));
+    }
+
+    // 5. Ensure options.txt automatically enables DV_Universal_Skin
+    let options_path = game_dir.join("options.txt");
+    let skin_pack_entry = "file/DV_Universal_Skin";
+    if options_path.exists() {
+        if let Ok(content) = fs::read_to_string(&options_path) {
+            if !content.contains("DV_Universal_Skin") {
+                let mut new_lines = Vec::new();
+                let mut replaced = false;
+                for line in content.lines() {
+                    if line.starts_with("resourcePacks:") {
+                        let trimmed = line.trim_end();
+                        if let Some(end_bracket) = trimmed.rfind(']') {
+                            let before = &trimmed[..end_bracket];
+                            let updated = if before.ends_with('[') {
+                                format!("{} \"{}\"]", before, skin_pack_entry)
+                            } else {
+                                format!("{},\"{}\"]", before, skin_pack_entry)
+                            };
+                            new_lines.push(updated);
+                            replaced = true;
+                            continue;
+                        }
+                    }
+                    new_lines.push(line.to_string());
+                }
+                if !replaced {
+                    new_lines.push(format!("resourcePacks:[\"vanilla\",\"{}\"]", skin_pack_entry));
+                }
+                let _ = fs::write(&options_path, new_lines.join("\n"));
+            }
+        }
+    } else {
+        let default_options = format!(
+            "resourcePacks:[\"vanilla\",\"{}\"]\nincompatibleResourcePacks:[]\n",
+            skin_pack_entry
+        );
+        let _ = fs::write(&options_path, default_options);
+    }
+
+    info!("Universal in-game player skin & cape pack synchronized in {}", rp_dir.display());
+    Ok(())
+}
+
+/// Synchronizes the universal skin & cape resource pack to all instances in `instances_dir`.
+pub fn sync_universal_skin_to_instances<P: AsRef<Path>>(instances_dir: P, username: &str) {
+    if let Ok(entries) = fs::read_dir(instances_dir.as_ref()) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let game_dir = path.join(".minecraft");
+                if game_dir.exists() || path.join("instance.json").exists() {
+                    let _ = ensure_in_game_skin_pack(&game_dir, username);
+                }
+            }
+        }
+    }
 }
 
 #[cfg(test)]

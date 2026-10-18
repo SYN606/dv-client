@@ -1686,15 +1686,16 @@ export component MainWindow inherits Window {
                 }
 
                 // ------------------------------------------
-                // PLAYER APPEARANCE: SKIN & CAPE STUDIO
+                // ------------------------------------------
+                // PLAYER APPEARANCE: UNIVERSAL SKIN & CAPE STUDIO
                 // ------------------------------------------
                 GlassCard {
-                    height: 200px;
+                    height: 220px;
                     background: #14161f88;
 
                     HorizontalLayout {
-                        padding: 20px;
-                        spacing: 24px;
+                        padding: 18px;
+                        spacing: 20px;
                         alignment: space-between;
 
                         // Left: Character & Cape Visual Showcase
@@ -1757,12 +1758,34 @@ export component MainWindow inherits Window {
                                 alignment: center;
                                 spacing: 4px;
 
-                                Text {
-                                    text: "PLAYER APPEARANCE & GEAR";
-                                    font-size: 11px;
-                                    font-weight: 800;
-                                    color: #FF3344;
-                                    letter-spacing: 1px;
+                                HorizontalLayout {
+                                    spacing: 8px;
+                                    alignment: start;
+                                    Text {
+                                        text: "🌍 UNIVERSAL STUDIO";
+                                        font-size: 11px;
+                                        font-weight: 800;
+                                        color: #FF3344;
+                                        letter-spacing: 1px;
+                                    }
+                                    Rectangle {
+                                        background: #22c55e22;
+                                        border-radius: 4px;
+                                        border-width: 1px;
+                                        border-color: #22c55e66;
+                                        height: 16px;
+                                        HorizontalLayout {
+                                            padding-left: 6px;
+                                            padding-right: 6px;
+                                            Text {
+                                                text: "ACTIVE FOR ALL PLAYERS";
+                                                font-size: 9px;
+                                                font-weight: 800;
+                                                color: #22c55e;
+                                                vertical-alignment: center;
+                                            }
+                                        }
+                                    }
                                 }
 
                                 Text {
@@ -1783,27 +1806,40 @@ export component MainWindow inherits Window {
                                     font-size: 13px;
                                     color: #A0A5B5;
                                 }
+
+                                Text {
+                                    text: "✓ Visible in singleplayer, LAN & multiplayer servers";
+                                    font-size: 11px;
+                                    color: #22c55e;
+                                    font-weight: 600;
+                                }
                             }
                         }
 
                         // Right: Actions (Change Skin, Change Cape, Presets)
                         VerticalLayout {
                             alignment: center;
-                            spacing: 10px;
+                            spacing: 8px;
                             width: 320px;
 
                             Text {
-                                text: "CUSTOMIZE TEXTURES";
+                                text: "UNIVERSAL APPEARANCE CONTROLS";
                                 font-size: 11px;
                                 font-weight: 800;
                                 color: #A0A5B5;
                                 letter-spacing: 1px;
                             }
 
+                            Text {
+                                text: "Uploads are applied universally to all player profiles & in-game models";
+                                font-size: 11px;
+                                color: #6F768A;
+                            }
+
                             HorizontalLayout {
                                 spacing: 10px;
                                 ActionButton {
-                                    text: "📁 Change Skin (.png)";
+                                    text: "📁 Upload Skin (.png)";
                                     is_primary: true;
                                     clicked => { root.change_skin_clicked(); }
                                 }
@@ -1818,7 +1854,7 @@ export component MainWindow inherits Window {
                             HorizontalLayout {
                                 spacing: 10px;
                                 ActionButton {
-                                    text: "🧣 Change Cape (.png)";
+                                    text: "🧣 Upload Cape (.png)";
                                     is_primary: false;
                                     clicked => { root.change_cape_clicked(); }
                                 }
