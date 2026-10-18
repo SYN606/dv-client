@@ -43,6 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let instance_mgr = Arc::new(Mutex::new(InstanceManager::new(&instances_dir)?));
     let auth_client = Arc::new(Mutex::new(MicrosoftAuthClient::new(&base_data_dir)));
     let supervisor = Arc::new(ProcessSupervisor::new());
+    let is_launching = Arc::new(std::sync::atomic::AtomicBool::new(false));
     let discord_rpc = Arc::new(DiscordRpcHandle::new(None));
 
     let enable_discord = {
@@ -208,6 +209,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let rpc = discord_rpc.clone();
         let inst_a = instance_mgr.clone();
         let cfg_a = config_mgr.clone();
+        let is_launch_c = is_launching.clone();
 
         tokio::spawn(async move {
             while let Ok(state) = state_rx.recv().await {
@@ -215,6 +217,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let rpc_c = rpc.clone();
                 let inst_c = inst_a.clone();
                 let cfg_c = cfg_a.clone();
+                let is_launch_inner = is_launch_c.clone();
 
                 match &state {
                     ProcessState::Running => {
@@ -239,8 +242,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => {}
                 }
 
+                is_launch_inner.store(false, std::sync::atomic::Ordering::SeqCst);
+
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_w.upgrade() {
+                        ui.set_is_launching(false);
+                        ui.set_is_downloading(false);
+
                         match state {
                             ProcessState::Starting => {
                                 ui.set_is_running(true);
@@ -277,6 +285,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let sup_arc = supervisor.clone();
         let ui_weak = main_window.as_weak();
         let java_candidate = best_java.clone();
+        let is_launch_arc = is_launching.clone();
 
         main_window.on_play_clicked(move || {
             let cfg = cfg_arc.clone();
@@ -285,6 +294,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let sup = sup_arc.clone();
             let ui_w = ui_weak.clone();
             let java_opt = java_candidate.clone();
+            let is_launch = is_launch_arc.clone();
+
+            // Strict single-instance guard: only one instance can run or launch at a time
+            if sup.is_active() || is_launch.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                warn!("Launch request ignored: An instance is already downloading, launching, or running.");
+                let ui_err = ui_w.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_err.upgrade() {
+                        ui.set_game_status(SharedString::from("Only one instance can run at a time"));
+                    }
+                });
+                return;
+            }
+
+            // Immediately signal download/launch preparation on the UI
+            let ui_start = ui_w.clone();
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ui_start.upgrade() {
+                    ui.set_is_launching(true);
+                    ui.set_is_downloading(true);
+                    ui.set_download_progress(0.0);
+                    ui.set_game_status(SharedString::from("Checking & Downloading assets..."));
+                }
+            });
 
             tokio::spawn(async move {
                 let (active_inst, config_clone) = {
@@ -298,6 +331,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Some(i) => i,
                     None => {
                         error!("No active instance found to launch");
+                        is_launch.store(false, std::sync::atomic::Ordering::SeqCst);
+                        let ui_err = ui_w.clone();
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(ui) = ui_err.upgrade() {
+                                ui.set_is_launching(false);
+                                ui.set_is_downloading(false);
+                                ui.set_game_status(SharedString::from("No Active Profile Selected"));
+                            }
+                        });
                         return;
                     }
                 };
@@ -332,6 +374,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let _ = slint::invoke_from_event_loop(move || {
                                 if let Some(ui) = ui_cb.upgrade() {
                                     handle_download_progress(&ui, &prog);
+                                    ui.set_is_downloading(true);
+                                    ui.set_is_launching(true);
                                 }
                             });
                         }),
@@ -345,15 +389,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     Ok(pkg) => pkg,
                     Err(e) => {
                         error!("Installation failed before launch: {}", e);
+                        is_launch.store(false, std::sync::atomic::Ordering::SeqCst);
                         let ui_err = ui_w.clone();
                         let _ = slint::invoke_from_event_loop(move || {
                             if let Some(ui) = ui_err.upgrade() {
+                                ui.set_is_launching(false);
+                                ui.set_is_downloading(false);
                                 ui.set_game_status(SharedString::from("Install Error"));
                             }
                         });
                         return;
                     }
                 };
+
+                // Transition to launching state (download finished)
+                let ui_launching = ui_w.clone();
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_launching.upgrade() {
+                        ui.set_is_downloading(false);
+                        ui.set_is_launching(true);
+                        ui.set_game_status(SharedString::from("Launching Minecraft JVM..."));
+                    }
+                });
 
                 // Resolve and install mod loader libraries if active (Fabric, Forge, OptiFine)
                 let loader_client = dv_launcher::loaders::ModLoaderClient::new();
@@ -413,7 +470,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let command_args = LaunchArgumentBuilder::build_command_args(&launch_ctx);
                 let gpu_id = config_clone.selected_gpu.unwrap_or_else(|| "auto".to_string());
                 let gpu_env = GpuDetector::get_env_vars_for_gpu(&gpu_id);
-                let _ = sup.launch_with_env(command_args, game_dir, gpu_env).await;
+                if let Err(e) = sup.launch_with_env(command_args, game_dir, gpu_env).await {
+                    error!("Launch failed: {}", e);
+                    is_launch.store(false, std::sync::atomic::Ordering::SeqCst);
+                    let ui_err = ui_w.clone();
+                    let _ = slint::invoke_from_event_loop(move || {
+                        if let Some(ui) = ui_err.upgrade() {
+                            ui.set_is_launching(false);
+                            ui.set_is_downloading(false);
+                            ui.set_game_status(SharedString::from(format!("Launch failed: {}", e)));
+                        }
+                    });
+                }
             });
         });
     }
@@ -421,8 +489,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Callback: TERMINATE CLICKED
     {
         let sup_arc = supervisor.clone();
+        let ui_weak = main_window.as_weak();
         main_window.on_terminate_clicked(move || {
             let sup = sup_arc.clone();
+            let ui_t = ui_weak.clone();
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ui_t.upgrade() {
+                    ui.set_game_status(SharedString::from("Stopping game..."));
+                }
+            });
             tokio::spawn(async move {
                 sup.terminate().await;
             });
@@ -1376,6 +1451,72 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
     }
 
+    // Callback: OPEN ROOT DIR IN FILE EXPLORER
+    {
+        let cfg_arc = config_mgr.clone();
+        main_window.on_open_root_dir_clicked(move || {
+            let cf = cfg_arc.clone();
+            tokio::spawn(async move {
+                let cm = cf.lock().await;
+                let dir = cm.config.base_path();
+                let _ = dv_launcher::instances::open_mods_folder(dir);
+            });
+        });
+    }
+
+    // Callback: OPEN PROFILES DIR IN FILE EXPLORER
+    {
+        let cfg_arc = config_mgr.clone();
+        main_window.on_open_profiles_dir_clicked(move || {
+            let cf = cfg_arc.clone();
+            tokio::spawn(async move {
+                let cm = cf.lock().await;
+                let dir = cm.config.instances_dir();
+                let _ = dv_launcher::instances::open_mods_folder(&dir);
+            });
+        });
+    }
+
+    // Callback: RESET SETTINGS TO DEFAULTS
+    {
+        let cfg_arc = config_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_reset_settings_clicked(move || {
+            let cfg = cfg_arc.clone();
+            let ui_w = ui_weak.clone();
+
+            tokio::spawn(async move {
+                let default_cfg = dv_launcher::config::LauncherConfig::default();
+                let mut cm = cfg.lock().await;
+                cm.config.default_min_memory_mb = default_cfg.default_min_memory_mb;
+                cm.config.default_max_memory_mb = default_cfg.default_max_memory_mb;
+                cm.config.default_window_width = default_cfg.default_window_width;
+                cm.config.default_window_height = default_cfg.default_window_height;
+                cm.config.privacy.enable_discord_rpc = default_cfg.privacy.enable_discord_rpc;
+                cm.config.performance_preset = default_cfg.performance_preset.clone();
+                let _ = cm.save();
+
+                let def_min = default_cfg.default_min_memory_mb as f32;
+                let def_max = default_cfg.default_max_memory_mb as f32;
+                let def_w = default_cfg.default_window_width as i32;
+                let def_h = default_cfg.default_window_height as i32;
+                let def_rpc = default_cfg.privacy.enable_discord_rpc;
+
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_w.upgrade() {
+                        ui.set_min_memory_mb(def_min);
+                        ui.set_max_memory_mb(def_max);
+                        ui.set_window_width(def_w);
+                        ui.set_window_height(def_h);
+                        ui.set_enable_discord_rpc(def_rpc);
+                        ui.set_settings_save_status(SharedString::from("Reset to Defaults ✓"));
+                    }
+                });
+            });
+        });
+    }
+
     // Callback: SELECT GPU PREFERENCE
     {
         let ui_weak = main_window.as_weak();
@@ -1428,6 +1569,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             let cfg = cfg_arc.clone();
             let rpc_c = rpc.clone();
+            let ui_w = ui_weak.clone();
             tokio::spawn(async move {
                 let mut cm = cfg.lock().await;
                 cm.config.default_min_memory_mb = min_mem;
@@ -1459,6 +1601,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 info!("Client preferences and directories saved successfully.");
+
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_w.upgrade() {
+                        ui.set_settings_save_status(SharedString::from("Settings Saved ✓"));
+                    }
+                });
             });
         });
     }

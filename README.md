@@ -7,13 +7,11 @@
 
 [![Release](https://img.shields.io/badge/Release-v1.0.0-FF3344?style=for-the-badge)](https://github.com/SYN606/dv-client)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/flex-dv)
-[![Website](https://img.shields.io/badge/Website-digitalvigital.fun-10B981?style=for-the-badge)](https://digitalvigital.fun)
+[![Website](https://img.shields.io/badge/Website-digitalvigital.fun-10B981?style=for-the-badge)](https://digitalvigital.fun/minecraft)
 
 A modern, ultra-fast Minecraft launcher designed for gamers who care about speed, clean design, and privacy. Built completely from the ground up in Rust — zero lag, zero bloat, and maximum FPS.
 
 </div>
-
----
 
 ## ✨ Why Choose DV Launcher?
 
@@ -43,8 +41,6 @@ Never let Minecraft accidentally run on weak integrated graphics again. DV autom
 Show off what you're playing to your friends on Discord with custom status display:  
 *"Playing Minecraft via Digital Vigital"*
 
----
-
 ## 🖥️ Getting Started
 
 ### 1. Download & Prerequisites
@@ -57,14 +53,12 @@ Make sure you have a modern **Java** installed (Java 21 is recommended for lates
 #### On Linux / macOS / Windows (From Source)
 ```bash
 # Clone the repository
-git clone git@github-personal:SYN606/dv-client.git
+git clone https://github.com/SYN606/dv-client
 cd dv-client
 
 # Launch the app
 cargo run --release
 ```
-
----
 
 ## 🕹️ Key Features at a Glance
 
@@ -76,17 +70,14 @@ cargo run --release
 | **Live Game Console** | View real-time logs and crash reports if a mod misbehaves. |
 | **Wayland & Dark Mode** | Sleek Obsidian & Crimson gamer theme with native Linux Wayland and Windows 10/11 support. |
 
----
-
 ## 💬 Community & Support
 
 Have questions, suggestions, or want to hang out with other players?
 
-- 🌐 **Official Website**: [digitalvigital.fun](https://digitalvigital.fun)
+- 🌐 **Official Website**: [digitalvigital.fun](https://digitalvigital.fun/minecraft)
 - 💬 **Discord Community**: [discord.gg/flex-dv](https://discord.gg/flex-dv)
 - 🐛 **Report an Issue**: Open an issue on our [GitHub repository](https://github.com/SYN606/dv-client/issues)
 
----
 
 ## ⚖️ Legal Notice
 
