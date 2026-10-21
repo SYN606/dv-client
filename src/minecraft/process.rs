@@ -101,7 +101,9 @@ impl ProcessSupervisor {
 
         let sanitized_cmd = sanitize_cmd_args(&args).join(" ");
         info!("Launching Minecraft: {}", sanitized_cmd);
-        let _ = self.output_tx.send(format!("[DV] Spawning: {}\n", sanitized_cmd));
+        let _ = self
+            .output_tx
+            .send(format!("[DV] Spawning: {}\n", sanitized_cmd));
 
         let program = &args[0];
         let prog_args = &args[1..];
@@ -192,11 +194,15 @@ impl ProcessSupervisor {
 
         if code == 0 {
             info!("Game process exited cleanly with code 0");
-            let _ = self.output_tx.send("[DV] Process exited cleanly.\n".to_string());
+            let _ = self
+                .output_tx
+                .send("[DV] Process exited cleanly.\n".to_string());
             let _ = self.state_tx.send(ProcessState::Exited(0));
         } else {
             error!("Game process exited with error code: {}", code);
-            let _ = self.output_tx.send(format!("[DV] Process exited with code {}\n", code));
+            let _ = self
+                .output_tx
+                .send(format!("[DV] Process exited with code {}\n", code));
             let _ = self.state_tx.send(ProcessState::Crashed(code));
         }
 
@@ -252,15 +258,25 @@ fn assign_child_to_kill_on_close_job(pid: u32) {
 
     #[link(name = "kernel32")]
     extern "system" {
-        fn CreateJobObjectW(lpJobAttributes: *const std::ffi::c_void, lpName: *const u16) -> *mut std::ffi::c_void;
+        fn CreateJobObjectW(
+            lpJobAttributes: *const std::ffi::c_void,
+            lpName: *const u16,
+        ) -> *mut std::ffi::c_void;
         fn SetInformationJobObject(
             hJob: *mut std::ffi::c_void,
             JobObjectInfoClass: i32,
             lpJobObjectInfo: *const std::ffi::c_void,
             cbJobObjectInfoLength: u32,
         ) -> i32;
-        fn OpenProcess(dwDesiredAccess: u32, bInheritHandle: i32, dwProcessId: u32) -> *mut std::ffi::c_void;
-        fn AssignProcessToJobObject(hJob: *mut std::ffi::c_void, hProcess: *mut std::ffi::c_void) -> i32;
+        fn OpenProcess(
+            dwDesiredAccess: u32,
+            bInheritHandle: i32,
+            dwProcessId: u32,
+        ) -> *mut std::ffi::c_void;
+        fn AssignProcessToJobObject(
+            hJob: *mut std::ffi::c_void,
+            hProcess: *mut std::ffi::c_void,
+        ) -> i32;
         fn CloseHandle(hObject: *mut std::ffi::c_void) -> i32;
     }
 

@@ -53,7 +53,10 @@ impl PistonMetaClient {
     }
 
     /// Retrieve the official version manifest, leveraging disk cache when fresh.
-    pub async fn get_version_manifest(&self, force_refresh: bool) -> Result<VersionManifest, MetaError> {
+    pub async fn get_version_manifest(
+        &self,
+        force_refresh: bool,
+    ) -> Result<VersionManifest, MetaError> {
         let cache_file = self.manifest_cache_file();
 
         if !force_refresh && cache_file.exists() {
@@ -62,7 +65,9 @@ impl PistonMetaClient {
                     if let Ok(elapsed) = SystemTime::now().duration_since(modified) {
                         if elapsed < MANIFEST_CACHE_TTL {
                             if let Ok(content) = fs::read_to_string(&cache_file) {
-                                if let Ok(manifest) = serde_json::from_str::<VersionManifest>(&content) {
+                                if let Ok(manifest) =
+                                    serde_json::from_str::<VersionManifest>(&content)
+                                {
                                     return Ok(manifest);
                                 }
                             }
@@ -72,7 +77,10 @@ impl PistonMetaClient {
             }
         }
 
-        info!("Fetching official version manifest from {}", OFFICIAL_MANIFEST_URL);
+        info!(
+            "Fetching official version manifest from {}",
+            OFFICIAL_MANIFEST_URL
+        );
         let resp = self
             .client
             .get(OFFICIAL_MANIFEST_URL)
@@ -85,14 +93,21 @@ impl PistonMetaClient {
 
         // Cache manifest to disk
         if let Err(e) = fs::write(&cache_file, &text) {
-            warn!("Failed to cache version manifest to {:?}: {}", cache_file, e);
+            warn!(
+                "Failed to cache version manifest to {:?}: {}",
+                cache_file, e
+            );
         }
 
         Ok(manifest)
     }
 
     /// Retrieve the version package JSON for a specific version ID.
-    pub async fn get_version_package(&self, version_id: &str, force_refresh: bool) -> Result<VersionPackage, MetaError> {
+    pub async fn get_version_package(
+        &self,
+        version_id: &str,
+        force_refresh: bool,
+    ) -> Result<VersionPackage, MetaError> {
         let package_cache = self.cache_dir.join(format!("{}.json", version_id));
 
         if !force_refresh && package_cache.exists() {
@@ -110,7 +125,10 @@ impl PistonMetaClient {
             .find(|v| v.id == version_id)
             .ok_or_else(|| MetaError::VersionNotFound(version_id.to_string()))?;
 
-        info!("Downloading version package for {} from {}", version_id, version_summary.url);
+        info!(
+            "Downloading version package for {} from {}",
+            version_id, version_summary.url
+        );
         let resp = self
             .client
             .get(&version_summary.url)
@@ -122,7 +140,10 @@ impl PistonMetaClient {
         let package: VersionPackage = serde_json::from_str(&text)?;
 
         if let Err(e) = fs::write(&package_cache, &text) {
-            warn!("Failed to cache version package to {:?}: {}", package_cache, e);
+            warn!(
+                "Failed to cache version package to {:?}: {}",
+                package_cache, e
+            );
         }
 
         Ok(package)

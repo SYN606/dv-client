@@ -307,9 +307,13 @@ impl AsyncDownloader {
                 if let Some(ref callback) = cb {
                     let percent = (completed as f32 / total_items as f32) * 100.0;
                     callback(DownloadProgress {
-                        current_item: task
-                            .display_name
-                            .unwrap_or_else(|| task.destination.file_name().unwrap_or_default().to_string_lossy().to_string()),
+                        current_item: task.display_name.unwrap_or_else(|| {
+                            task.destination
+                                .file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .to_string()
+                        }),
                         completed_items: completed,
                         total_items,
                         bytes_downloaded: bytes,

@@ -122,7 +122,10 @@ impl ModLoaderClient {
     }
 
     /// Query compatible Fabric loader versions for a specific Minecraft version.
-    pub async fn get_fabric_loaders(&self, mc_version: &str) -> Result<Vec<LoaderVersionInfo>, LoaderError> {
+    pub async fn get_fabric_loaders(
+        &self,
+        mc_version: &str,
+    ) -> Result<Vec<LoaderVersionInfo>, LoaderError> {
         let url = format!("{}/versions/loader/{}", FABRIC_META_BASE, mc_version);
         let resp = match self.client.get(&url).send().await {
             Ok(r) => r,
@@ -142,7 +145,10 @@ impl ModLoaderClient {
         for item in data {
             if let Some(loader) = item.get("loader") {
                 if let Some(ver) = loader.get("version").and_then(|v| v.as_str()) {
-                    let stable = loader.get("stable").and_then(|s| s.as_bool()).unwrap_or(true);
+                    let stable = loader
+                        .get("stable")
+                        .and_then(|s| s.as_bool())
+                        .unwrap_or(true);
                     results.push(LoaderVersionInfo {
                         loader_name: "fabric".to_string(),
                         version: ver.to_string(),
@@ -157,7 +163,10 @@ impl ModLoaderClient {
     }
 
     /// Query compatible Quilt loader versions for a specific Minecraft version.
-    pub async fn get_quilt_loaders(&self, mc_version: &str) -> Result<Vec<LoaderVersionInfo>, LoaderError> {
+    pub async fn get_quilt_loaders(
+        &self,
+        mc_version: &str,
+    ) -> Result<Vec<LoaderVersionInfo>, LoaderError> {
         let url = format!("{}/versions/loader/{}", QUILT_META_BASE, mc_version);
         let resp = match self.client.get(&url).send().await {
             Ok(r) => r,
@@ -177,7 +186,10 @@ impl ModLoaderClient {
         for item in data {
             if let Some(loader) = item.get("loader") {
                 if let Some(ver) = loader.get("version").and_then(|v| v.as_str()) {
-                    let stable = loader.get("stable").and_then(|s| s.as_bool()).unwrap_or(true);
+                    let stable = loader
+                        .get("stable")
+                        .and_then(|s| s.as_bool())
+                        .unwrap_or(true);
                     results.push(LoaderVersionInfo {
                         loader_name: "quilt".to_string(),
                         version: ver.to_string(),
@@ -213,6 +225,35 @@ impl ModLoaderClient {
         }
 
         Ok(versions)
+    }
+
+    /// Retrieve Quilt profile JSON containing mainClass and libraries for launching.
+    pub async fn get_quilt_profile(
+        &self,
+        mc_version: &str,
+        loader_version: Option<&str>,
+    ) -> Result<FabricProfile, LoaderError> {
+        let version_to_use = match loader_version {
+            Some(v) => v.to_string(),
+            None => {
+                let loaders = self.get_quilt_loaders(mc_version).await?;
+                let selected = loaders
+                    .iter()
+                    .find(|l| l.stable)
+                    .or_else(|| loaders.first())
+                    .map(|l| l.version.clone())
+                    .unwrap_or_else(|| "0.27.1".to_string());
+                selected
+            }
+        };
+
+        let url = format!(
+            "{}/versions/loader/{}/{}/profile/json",
+            QUILT_META_BASE, mc_version, version_to_use
+        );
+        let resp = self.client.get(&url).send().await?.error_for_status()?;
+        let profile: FabricProfile = resp.json().await?;
+        Ok(profile)
     }
 
     /// Retrieve Fabric profile JSON containing mainClass and libraries for launching.
@@ -269,12 +310,53 @@ impl ModLoaderClient {
                     }
                 }
                 if info.extra_jvm_args.is_empty() {
-                    info.extra_jvm_args.push("-DFabricMcEmu= net.minecraft.client.main.Main ".to_string());
+                    info.extra_jvm_args
+                        .push("-DFabricMcEmu= net.minecraft.client.main.Main ".to_string());
                 }
 
                 // Download libraries into shared libraries dir
                 for lib in &profile.libraries {
-                    if let (Some(rel_path), Some(dl_url)) = (lib.maven_relative_path(), lib.download_url()) {
+                    if let (Some(rel_path), Some(dl_url)) =
+                        (lib.maven_relative_path(), lib.download_url())
+                    {
+                        let target_path = libraries_dir.join(&rel_path);
+                        if !target_path.exists() {
+                            if let Some(parent) = target_path.parent() {
+                                let _ = std::fs::create_dir_all(parent);
+                            }
+                            if let Ok(resp) = self.client.get(&dl_url).send().await {
+                                if resp.status().is_success() {
+                                    if let Ok(bytes) = resp.bytes().await {
+                                        let _ = std::fs::write(&target_path, bytes);
+                                    }
+                                }
+                            }
+                        }
+                        if target_path.exists() {
+                            info.extra_libraries.push(target_path);
+                        }
+                    }
+                }
+            }
+            "quilt" => {
+                let profile = self.get_quilt_profile(mc_version, loader_version).await?;
+                info.main_class = Some(profile.main_class.clone());
+
+                if let Some(ref args) = profile.arguments {
+                    if let Some(ref jvm) = args.jvm {
+                        info.extra_jvm_args.extend(jvm.clone());
+                    }
+                    if let Some(ref game) = args.game {
+                        info.extra_game_args.extend(game.clone());
+                    }
+                }
+
+                // Download Quilt libraries into shared libraries dir
+                for lib in &profile.libraries {
+                    if let Some(rel_path) = lib.maven_relative_path() {
+                        let dl_url = lib.download_url().unwrap_or_else(|| {
+                            format!("https://maven.quiltmc.org/repository/release/{}", rel_path)
+                        });
                         let target_path = libraries_dir.join(&rel_path);
                         if !target_path.exists() {
                             if let Some(parent) = target_path.parent() {
@@ -295,11 +377,36 @@ impl ModLoaderClient {
                 }
             }
             "optifine" => {
-                info.extra_game_args.push("--tweakClass".to_string());
-                info.extra_game_args.push("optifine.OptiFineTweaker".to_string());
+                // Search for OptiFine JAR in the libraries directory
+                let mut found_optifine = false;
+                if let Ok(entries) = std::fs::read_dir(libraries_dir) {
+                    for entry in entries.flatten() {
+                        let name = entry.file_name().to_string_lossy().to_string();
+                        if name.to_lowercase().contains("optifine") && name.ends_with(".jar") {
+                            info.extra_libraries.push(entry.path());
+                            found_optifine = true;
+                            break;
+                        }
+                    }
+                }
+
+                if found_optifine {
+                    info.extra_game_args.push("--tweakClass".to_string());
+                    info.extra_game_args
+                        .push("optifine.OptiFineTweaker".to_string());
+                } else {
+                    warn!("OptiFine was selected, but no OptiFine JAR was found in the libraries directory. To prevent ClassNotFoundException, launching standard game jar.");
+                }
             }
             "forge" => {
-                info.extra_jvm_args.push("-Dforge.logging.console.level=info".to_string());
+                info.extra_jvm_args
+                    .push("-Dforge.logging.console.level=info".to_string());
+                warn!("Forge profile selected. Modern Forge requires running the Forge client installer for this instance.");
+            }
+            "neoforge" => {
+                info.extra_jvm_args
+                    .push("-Dneoforge.logging.console.level=info".to_string());
+                warn!("NeoForge profile selected. NeoForge requires running the NeoForge client installer for this instance.");
             }
             _ => {
                 // vanilla - standard launcher arguments
@@ -354,8 +461,14 @@ mod tests {
         }"#;
 
         let profile: FabricProfile = serde_json::from_str(sample).unwrap();
-        assert_eq!(profile.main_class, "net.fabricmc.loader.impl.launch.knot.KnotClient");
+        assert_eq!(
+            profile.main_class,
+            "net.fabricmc.loader.impl.launch.knot.KnotClient"
+        );
         assert_eq!(profile.libraries.len(), 1);
-        assert_eq!(profile.libraries[0].name, "net.fabricmc:fabric-loader:0.16.10");
+        assert_eq!(
+            profile.libraries[0].name,
+            "net.fabricmc:fabric-loader:0.16.10"
+        );
     }
 }

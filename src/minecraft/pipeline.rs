@@ -74,8 +74,14 @@ impl InstallationPipeline {
             info!("{}", msg);
         };
 
-        set_status(&format!("Resolving official version metadata for {}...", version_id));
-        let package = self.meta_client.get_version_package(version_id, false).await?;
+        set_status(&format!(
+            "Resolving official version metadata for {}...",
+            version_id
+        ));
+        let package = self
+            .meta_client
+            .get_version_package(version_id, false)
+            .await?;
 
         let version_dir = config.shared_versions_dir().join(version_id);
         fs::create_dir_all(&version_dir)?;
@@ -145,10 +151,9 @@ impl InstallationPipeline {
                         };
                         let classifier_key = classifier_tpl.replace("${arch}", arch_str);
                         if let Some(native_art) = classifiers.get(&classifier_key) {
-                            let rel_path_opt = native_art
-                                .path
-                                .as_deref()
-                                .or_else(|| native_art.url.split("libraries.minecraft.net/").nth(1));
+                            let rel_path_opt = native_art.path.as_deref().or_else(|| {
+                                native_art.url.split("libraries.minecraft.net/").nth(1)
+                            });
 
                             if let Some(rel_path) = rel_path_opt {
                                 let dest = config.shared_libraries_dir().join(rel_path);
@@ -169,7 +174,10 @@ impl InstallationPipeline {
         }
 
         // 3. Asset Index
-        set_status(&format!("Fetching asset index for {}...", package.asset_index.id));
+        set_status(&format!(
+            "Fetching asset index for {}...",
+            package.asset_index.id
+        ));
         let index_dir = config.shared_assets_dir().join("indexes");
         fs::create_dir_all(&index_dir)?;
         let index_file = index_dir.join(format!("{}.json", package.asset_index.id));
@@ -222,11 +230,19 @@ impl InstallationPipeline {
         }
 
         // 4. Download all artifacts with progress reporting
-        set_status(&format!("Downloading {} required components...", download_tasks.len()));
-        self.downloader.download_all(download_tasks, progress_cb).await?;
+        set_status(&format!(
+            "Downloading {} required components...",
+            download_tasks.len()
+        ));
+        self.downloader
+            .download_all(download_tasks, progress_cb)
+            .await?;
 
         // 5. Extract native libraries safely
-        set_status(&format!("Extracting native libraries into {:?}...", natives_dir));
+        set_status(&format!(
+            "Extracting native libraries into {:?}...",
+            natives_dir
+        ));
         for archive in &native_archives_to_extract {
             if archive.exists() {
                 let _ = extract_natives(archive, &natives_dir, &[]);
@@ -257,8 +273,14 @@ impl InstallationPipeline {
             info!("{}", msg);
         };
 
-        set_status(&format!("Verifying client package for Minecraft {}...", version_id));
-        let package = self.meta_client.get_version_package(version_id, false).await?;
+        set_status(&format!(
+            "Verifying client package for Minecraft {}...",
+            version_id
+        ));
+        let package = self
+            .meta_client
+            .get_version_package(version_id, false)
+            .await?;
 
         let version_dir = config.shared_versions_dir().join(version_id);
         fs::create_dir_all(&version_dir)?;
@@ -270,7 +292,10 @@ impl InstallationPipeline {
         total_files_checked += 1;
         let client_jar_dest = version_dir.join(format!("{}.jar", version_id));
         let client_valid = client_jar_dest.exists()
-            && crate::security::hashes::verify_file_sha1(&client_jar_dest, &package.downloads.client.sha1);
+            && crate::security::hashes::verify_file_sha1(
+                &client_jar_dest,
+                &package.downloads.client.sha1,
+            );
         if !client_valid {
             download_tasks.push(DownloadTask {
                 url: package.downloads.client.url.clone(),
@@ -316,11 +341,22 @@ impl InstallationPipeline {
 
         let repaired_count = download_tasks.len();
         if !download_tasks.is_empty() {
-            set_status(&format!("Found {} missing or corrupted files. Re-downloading...", repaired_count));
-            self.downloader.download_all(download_tasks, progress_cb).await?;
-            set_status(&format!("Verification complete: Checked {} files, repaired {} corrupted/missing files.", total_files_checked, repaired_count));
+            set_status(&format!(
+                "Found {} missing or corrupted files. Re-downloading...",
+                repaired_count
+            ));
+            self.downloader
+                .download_all(download_tasks, progress_cb)
+                .await?;
+            set_status(&format!(
+                "Verification complete: Checked {} files, repaired {} corrupted/missing files.",
+                total_files_checked, repaired_count
+            ));
         } else {
-            set_status(&format!("Verification complete: All {} files verified and intact (100% valid SHA-1)!", total_files_checked));
+            set_status(&format!(
+                "Verification complete: All {} files verified and intact (100% valid SHA-1)!",
+                total_files_checked
+            ));
         }
 
         Ok((total_files_checked, repaired_count))
@@ -346,8 +382,14 @@ impl InstallationPipeline {
             info!("{}", msg);
         };
 
-        set_status(&format!("Resolving asset index for Minecraft {}...", version_id));
-        let package = self.meta_client.get_version_package(version_id, false).await?;
+        set_status(&format!(
+            "Resolving asset index for Minecraft {}...",
+            version_id
+        ));
+        let package = self
+            .meta_client
+            .get_version_package(version_id, false)
+            .await?;
 
         let index_dir = config.shared_assets_dir().join("indexes");
         fs::create_dir_all(&index_dir)?;
@@ -388,11 +430,15 @@ impl InstallationPipeline {
                                     .join(hash);
 
                                 let is_valid = obj_dest.exists()
-                                    && obj_dest.metadata().map(|m| m.len() == size).unwrap_or(false)
+                                    && obj_dest
+                                        .metadata()
+                                        .map(|m| m.len() == size)
+                                        .unwrap_or(false)
                                     && crate::security::hashes::verify_file_sha1(&obj_dest, hash);
 
                                 if !is_valid {
-                                    let obj_url = format!("{}/{}/{}", MOJANG_ASSET_BASE, prefix, hash);
+                                    let obj_url =
+                                        format!("{}/{}/{}", MOJANG_ASSET_BASE, prefix, hash);
                                     download_tasks.push(DownloadTask {
                                         url: obj_url,
                                         destination: obj_dest,
@@ -411,11 +457,22 @@ impl InstallationPipeline {
 
         let repaired_count = download_tasks.len();
         if !download_tasks.is_empty() {
-            set_status(&format!("Repairing {} missing or corrupted assets...", repaired_count));
-            self.downloader.download_all(download_tasks, progress_cb).await?;
-            set_status(&format!("Asset repair complete: Checked {} assets, restored {} files.", total_assets_checked, repaired_count));
+            set_status(&format!(
+                "Repairing {} missing or corrupted assets...",
+                repaired_count
+            ));
+            self.downloader
+                .download_all(download_tasks, progress_cb)
+                .await?;
+            set_status(&format!(
+                "Asset repair complete: Checked {} assets, restored {} files.",
+                total_assets_checked, repaired_count
+            ));
         } else {
-            set_status(&format!("Asset check complete: All {} game assets intact and verified!", total_assets_checked));
+            set_status(&format!(
+                "Asset check complete: All {} game assets intact and verified!",
+                total_assets_checked
+            ));
         }
 
         Ok((total_assets_checked, repaired_count))

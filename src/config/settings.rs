@@ -29,7 +29,8 @@ pub fn get_default_app_data_dir() -> PathBuf {
             return dunce::simplified(&data.join("DigitalVigital")).to_path_buf();
         }
         if let Some(home) = dirs::home_dir() {
-            return dunce::simplified(&home.join("AppData").join("Roaming").join("DigitalVigital")).to_path_buf();
+            return dunce::simplified(&home.join("AppData").join("Roaming").join("DigitalVigital"))
+                .to_path_buf();
         }
         PathBuf::from(".digitalvigital")
     } else if cfg!(target_os = "macos") {

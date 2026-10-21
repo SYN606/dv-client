@@ -129,7 +129,11 @@ impl GpuDetector {
                     let id = format!(
                         "{}-{}",
                         vendor.to_lowercase(),
-                        if is_discrete { "discrete" } else { "integrated" }
+                        if is_discrete {
+                            "discrete"
+                        } else {
+                            "integrated"
+                        }
                     );
 
                     let display_name = format!("{}{}", desc, suffix);
@@ -215,19 +219,19 @@ impl GpuDetector {
             return None;
         }
 
-        let is_nvidia = lower.contains("nvidia") || lower.contains("geforce") || lower.contains("quadro");
+        let is_nvidia =
+            lower.contains("nvidia") || lower.contains("geforce") || lower.contains("quadro");
         let is_amd = lower.contains("amd") || lower.contains("radeon");
         let is_intel = lower.contains("intel");
 
         // Intel Arc are discrete graphics cards; HD/UHD/Iris are integrated
-        let is_intel_discrete = lower.contains("arc ") || lower.contains("arc(tm)") || lower.contains("arc a");
+        let is_intel_discrete =
+            lower.contains("arc ") || lower.contains("arc(tm)") || lower.contains("arc a");
         let is_amd_integrated = lower.contains("vega")
             || lower.contains("integrated")
             || (lower.contains("graphics") && !lower.contains("rx") && !lower.contains("xt"));
 
-        let is_discrete = is_nvidia
-            || is_intel_discrete
-            || (is_amd && !is_amd_integrated);
+        let is_discrete = is_nvidia || is_intel_discrete || (is_amd && !is_amd_integrated);
 
         let vendor = if is_nvidia {
             "NVIDIA"
@@ -251,7 +255,15 @@ impl GpuDetector {
             " (Integrated Power-Saving)"
         };
 
-        let id = format!("{}-{}", vendor.to_lowercase(), if is_discrete { "discrete" } else { "integrated" });
+        let id = format!(
+            "{}-{}",
+            vendor.to_lowercase(),
+            if is_discrete {
+                "discrete"
+            } else {
+                "integrated"
+            }
+        );
 
         Some(GpuDevice {
             id,
@@ -300,7 +312,9 @@ impl GpuDetector {
             // StateFlags & 0x8 is DISPLAY_DEVICE_MIRRORING_DRIVER (virtual mirror drivers)
             if (dev.StateFlags & 8) == 0 {
                 let len = dev.DeviceString.iter().position(|&c| c == 0).unwrap_or(128);
-                let name = String::from_utf16_lossy(&dev.DeviceString[..len]).trim().to_string();
+                let name = String::from_utf16_lossy(&dev.DeviceString[..len])
+                    .trim()
+                    .to_string();
                 if !name.is_empty() && !raw_names.contains(&name) {
                     raw_names.push(name);
                 }
@@ -354,7 +368,9 @@ impl GpuDetector {
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::process::CommandExt;
-            let path_str = dunce::simplified(java_exe.as_ref()).to_string_lossy().to_string();
+            let path_str = dunce::simplified(java_exe.as_ref())
+                .to_string_lossy()
+                .to_string();
             let pref_val = if gpu_id.to_lowercase().contains("discrete")
                 || gpu_id.to_lowercase().contains("nvidia")
                 || gpu_id.to_lowercase().contains("amd")
@@ -382,7 +398,10 @@ impl GpuDetector {
             ]);
             reg_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
             let _ = reg_cmd.output();
-            info!("Registered Windows DirectX GPU preference: {} -> {}", path_str, pref_val);
+            info!(
+                "Registered Windows DirectX GPU preference: {} -> {}",
+                path_str, pref_val
+            );
         }
         #[cfg(not(target_os = "windows"))]
         {
@@ -398,8 +417,14 @@ impl GpuDetector {
         if id_lower.contains("nvidia") {
             // Linux NVIDIA PRIME offloading
             vars.push(("__NV_PRIME_RENDER_OFFLOAD".to_string(), "1".to_string()));
-            vars.push(("__GLX_VENDOR_LIBRARY_NAME".to_string(), "nvidia".to_string()));
-            vars.push(("__VK_LAYER_NV_optimus".to_string(), "NVIDIA_only".to_string()));
+            vars.push((
+                "__GLX_VENDOR_LIBRARY_NAME".to_string(),
+                "nvidia".to_string(),
+            ));
+            vars.push((
+                "__VK_LAYER_NV_optimus".to_string(),
+                "NVIDIA_only".to_string(),
+            ));
             // Windows High-Performance hybrid graphics scheduler hint
             vars.push(("SHIM_MCCOMPAT".to_string(), "0x800000001".to_string()));
         } else if id_lower.contains("amd") {
@@ -435,8 +460,12 @@ mod tests {
     #[test]
     fn test_nvidia_gpu_env_vars() {
         let vars = GpuDetector::get_env_vars_for_gpu("nvidia-discrete");
-        assert!(vars.iter().any(|(k, v)| k == "__NV_PRIME_RENDER_OFFLOAD" && v == "1"));
-        assert!(vars.iter().any(|(k, v)| k == "__GLX_VENDOR_LIBRARY_NAME" && v == "nvidia"));
+        assert!(vars
+            .iter()
+            .any(|(k, v)| k == "__NV_PRIME_RENDER_OFFLOAD" && v == "1"));
+        assert!(vars
+            .iter()
+            .any(|(k, v)| k == "__GLX_VENDOR_LIBRARY_NAME" && v == "nvidia"));
     }
 
     #[test]
@@ -448,7 +477,9 @@ mod tests {
     #[test]
     fn test_integrated_gpu_env_vars() {
         let vars = GpuDetector::get_env_vars_for_gpu("intel-integrated");
-        assert!(vars.iter().any(|(k, v)| k == "__NV_PRIME_RENDER_OFFLOAD" && v == "0"));
+        assert!(vars
+            .iter()
+            .any(|(k, v)| k == "__NV_PRIME_RENDER_OFFLOAD" && v == "0"));
     }
 
     #[test]

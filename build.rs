@@ -1,10 +1,16 @@
 fn main() {
     slint_build::compile("ui/main.slint").expect("Failed to compile Slint UI definition");
 
-    #[cfg(target_os = "windows")]
-    {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
         let mut res = winres::WindowsResource::new();
         res.set_icon("assets/logo.ico");
+        res.set("ProductName", "Digital Vigital Launcher");
+        res.set("FileDescription", "Digital Vigital Minecraft Launcher");
+        res.set("CompanyName", "Digital Vigital");
+        res.set("LegalCopyright", "Copyright (c) 2026 Digital Vigital");
+        res.set("OriginalFilename", "dv-launcher.exe");
+        res.set("FileVersion", "1.2.0.0");
+        res.set("ProductVersion", "1.2.0.0");
         res.set_manifest(r#"
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">

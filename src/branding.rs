@@ -5,7 +5,7 @@
 
 pub const APP_NAME: &str = "Digital Vigital";
 pub const APP_NAME_SHORT: &str = "DV";
-pub const APP_TITLE: &str = "Digital Vigital (DV) — Minecraft Launcher";
+pub const APP_TITLE: &str = "Digital Vigital (DV) - Minecraft Launcher";
 pub const APP_TAGLINE: &str = "Your Minecraft. Your Control.";
 pub const APP_VERSION: &str = "1.1.0";
 pub const BUILD_NUMBER: &str = "110";

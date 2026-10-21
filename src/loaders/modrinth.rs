@@ -76,7 +76,11 @@ impl ModrinthClient {
         mc_version: Option<&str>,
         loader: Option<&str>,
     ) -> Result<Vec<ModrinthMod>, LoaderError> {
-        let mut url = format!("{}/search?query={}&limit=25", MODRINTH_API_BASE, urlencoding_encode(query));
+        let mut url = format!(
+            "{}/search?query={}&limit=25",
+            MODRINTH_API_BASE,
+            urlencoding_encode(query)
+        );
 
         // Build facets filter: project_type:mod
         let mut facets = vec![r#"["project_type:mod"]"#.to_string()];
@@ -112,20 +116,53 @@ impl ModrinthClient {
 
         if let Some(hits) = body.get("hits").and_then(|h| h.as_array()) {
             for hit in hits {
-                let project_id = hit.get("project_id").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let slug = hit.get("slug").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let title = hit.get("title").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let description = hit.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string();
-                let author = hit.get("author").and_then(|v| v.as_str()).unwrap_or("").to_string();
+                let project_id = hit
+                    .get("project_id")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let slug = hit
+                    .get("slug")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let title = hit
+                    .get("title")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let description = hit
+                    .get("description")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                let author = hit
+                    .get("author")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
                 let downloads = hit.get("downloads").and_then(|v| v.as_u64()).unwrap_or(0);
-                let icon_url = hit.get("icon_url").and_then(|v| v.as_str()).map(|s| s.to_string());
-                let categories = hit.get("categories")
+                let icon_url = hit
+                    .get("icon_url")
+                    .and_then(|v| v.as_str())
+                    .map(|s| s.to_string());
+                let categories = hit
+                    .get("categories")
                     .and_then(|c| c.as_array())
-                    .map(|arr| arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
                     .unwrap_or_default();
-                let versions = hit.get("versions")
+                let versions = hit
+                    .get("versions")
                     .and_then(|c| c.as_array())
-                    .map(|arr| arr.iter().filter_map(|x| x.as_str().map(|s| s.to_string())).collect())
+                    .map(|arr| {
+                        arr.iter()
+                            .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                            .collect()
+                    })
                     .unwrap_or_default();
 
                 if !title.is_empty() {
@@ -171,7 +208,11 @@ impl ModrinthClient {
     }
 
     /// Fetch and cache a Modrinth mod logo into the icon cache directory.
-    pub async fn fetch_mod_icon(&self, project_id: &str, icon_url: &str) -> Option<std::path::PathBuf> {
+    pub async fn fetch_mod_icon(
+        &self,
+        project_id: &str,
+        icon_url: &str,
+    ) -> Option<std::path::PathBuf> {
         let cache_dir = crate::instances::mods::get_mod_icon_cache_dir();
         let icon_path = cache_dir.join(format!("modrinth_{}.png", project_id));
 
@@ -192,7 +233,10 @@ impl ModrinthClient {
             // Attempt to re-encode existing corrupt/WebP file to valid PNG
             if let Ok(bytes) = fs::read(&icon_path) {
                 if let Ok(img) = image::load_from_memory(&bytes) {
-                    if img.save_with_format(&icon_path, image::ImageFormat::Png).is_ok() {
+                    if img
+                        .save_with_format(&icon_path, image::ImageFormat::Png)
+                        .is_ok()
+                    {
                         return Some(icon_path);
                     }
                 }
@@ -209,7 +253,8 @@ impl ModrinthClient {
                             if bytes.len() >= 4 && bytes[..4] == [0x89, 0x50, 0x4E, 0x47] {
                                 fs::write(&path_clone, &bytes).is_ok()
                             } else if let Ok(img) = image::load_from_memory(&bytes) {
-                                img.save_with_format(&path_clone, image::ImageFormat::Png).is_ok()
+                                img.save_with_format(&path_clone, image::ImageFormat::Png)
+                                    .is_ok()
                             } else {
                                 false
                             }
@@ -240,7 +285,10 @@ impl ModrinthClient {
         let dir = mods_dir.as_ref();
         fs::create_dir_all(dir)?;
 
-        let mut url = format!("{}/project/{}/version", MODRINTH_API_BASE, project_id_or_slug);
+        let mut url = format!(
+            "{}/project/{}/version",
+            MODRINTH_API_BASE, project_id_or_slug
+        );
 
         let l_clean = loader.to_lowercase();
         let mut query_params = Vec::new();
@@ -276,9 +324,17 @@ impl ModrinthClient {
             .ok_or_else(|| LoaderError::Custom("Mod version has no download files".to_string()))?;
 
         let dest = dir.join(&file.filename);
-        info!("Downloading mod '{}' from {} into {:?}", file.filename, file.url, dest);
+        info!(
+            "Downloading mod '{}' from {} into {:?}",
+            file.filename, file.url, dest
+        );
 
-        let dl_resp = self.client.get(&file.url).send().await?.error_for_status()?;
+        let dl_resp = self
+            .client
+            .get(&file.url)
+            .send()
+            .await?
+            .error_for_status()?;
         let bytes = dl_resp.bytes().await?;
         fs::write(&dest, bytes)?;
 

@@ -4,8 +4,8 @@
 //! offline development accounts, profile persistence, and OS keyring storage.
 
 use super::oauth::{
-    PkceChallenge, DEFAULT_AZURE_CLIENT_ID, MC_AUTH_ENDPOINT, MC_PROFILE_ENDPOINT,
-    REDIRECT_URI, TOKEN_ENDPOINT, XBL_AUTH_ENDPOINT, XSTS_AUTH_ENDPOINT,
+    PkceChallenge, DEFAULT_AZURE_CLIENT_ID, MC_AUTH_ENDPOINT, MC_PROFILE_ENDPOINT, REDIRECT_URI,
+    TOKEN_ENDPOINT, XBL_AUTH_ENDPOINT, XSTS_AUTH_ENDPOINT,
 };
 use crate::branding;
 use crate::security::CredentialVault;
@@ -130,7 +130,10 @@ impl MicrosoftAuthClient {
     }
 
     /// Complete Microsoft authentication flow with received authorization code.
-    pub async fn complete_login_with_code(&mut self, auth_code: &str) -> Result<MinecraftAccount, AuthError> {
+    pub async fn complete_login_with_code(
+        &mut self,
+        auth_code: &str,
+    ) -> Result<MinecraftAccount, AuthError> {
         let pkce = self
             .current_pkce
             .take()
@@ -154,9 +157,9 @@ impl MicrosoftAuthClient {
             .error_for_status()?;
 
         let ms_data: serde_json::Value = ms_resp.json().await?;
-        let ms_access_token = ms_data["access_token"]
-            .as_str()
-            .ok_or_else(|| AuthError::Protocol("Missing access_token in MS response".to_string()))?;
+        let ms_access_token = ms_data["access_token"].as_str().ok_or_else(|| {
+            AuthError::Protocol("Missing access_token in MS response".to_string())
+        })?;
         let refresh_token = ms_data.get("refresh_token").and_then(|r| r.as_str());
 
         // 2. Exchange for XBL token
@@ -268,7 +271,10 @@ impl MicrosoftAuthClient {
         self.accounts.insert(account.id.clone(), account.clone());
         self.save_accounts()?;
 
-        info!("Successfully authenticated Microsoft account: {}", account.username);
+        info!(
+            "Successfully authenticated Microsoft account: {}",
+            account.username
+        );
         Ok(account)
     }
 
@@ -290,14 +296,20 @@ impl MicrosoftAuthClient {
         if username.len() > 16 {
             return Err("Username cannot exceed 16 characters");
         }
-        if !username.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
+        if !username
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
             return Err("Only letters, numbers, and underscores are allowed");
         }
         Ok(())
     }
 
     /// Create an offline development profile for local testing without network authentication.
-    pub fn create_offline_account(&mut self, username: &str) -> Result<MinecraftAccount, AuthError> {
+    pub fn create_offline_account(
+        &mut self,
+        username: &str,
+    ) -> Result<MinecraftAccount, AuthError> {
         if let Err(err_msg) = Self::validate_offline_username(username) {
             return Err(AuthError::Protocol(err_msg.to_string()));
         }
@@ -330,7 +342,10 @@ impl MicrosoftAuthClient {
         self.accounts.insert(account.id.clone(), account.clone());
         self.save_accounts()?;
 
-        info!("Created offline account: {} ({})", account.username, account.id);
+        info!(
+            "Created offline account: {} ({})",
+            account.username, account.id
+        );
         Ok(account)
     }
 
@@ -358,6 +373,151 @@ impl MicrosoftAuthClient {
         }
         self.accounts.values().next().cloned()
     }
+
+    /// Refresh expired Microsoft session tokens using the secure refresh token from the OS keyring vault.
+    pub async fn refresh_account_token(&mut self, account_id: &str) -> Result<String, AuthError> {
+        let ref_token = self.vault.get_refresh_token(account_id)?.ok_or_else(|| {
+            AuthError::Protocol(format!(
+                "No stored refresh token found in OS keyring for account ID {}",
+                account_id
+            ))
+        })?;
+
+        info!("Refreshing Microsoft token for account ID: {}", account_id);
+
+        let token_params = [
+            ("client_id", self.client_id.as_str()),
+            ("grant_type", "refresh_token"),
+            ("refresh_token", ref_token.as_str()),
+            ("redirect_uri", REDIRECT_URI),
+            ("scope", "XboxLive.signin offline_access"),
+        ];
+
+        let ms_resp = self
+            .client
+            .post(TOKEN_ENDPOINT)
+            .form(&token_params)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let ms_data: serde_json::Value = ms_resp.json().await?;
+        let ms_access_token = ms_data["access_token"].as_str().ok_or_else(|| {
+            AuthError::Protocol("Missing access_token in MS refresh response".to_string())
+        })?;
+        let new_refresh_token = ms_data.get("refresh_token").and_then(|r| r.as_str());
+
+        // Update refresh token in vault if renewed by Microsoft
+        if let Some(new_ref) = new_refresh_token {
+            let _ = self.vault.save_refresh_token(account_id, new_ref);
+        }
+
+        // 2. Exchange for XBL token
+        let xbl_payload = json!({
+            "Properties": {
+                "AuthMethod": "RPS",
+                "SiteName": "user.auth.xboxlive.com",
+                "RpsTicket": format!("d={}", ms_access_token)
+            },
+            "RelyingParty": "http://auth.xboxlive.com",
+            "TokenType": "JWT"
+        });
+
+        let xbl_resp = self
+            .client
+            .post(XBL_AUTH_ENDPOINT)
+            .json(&xbl_payload)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let xbl_data: serde_json::Value = xbl_resp.json().await?;
+        let xbl_token = xbl_data["Token"]
+            .as_str()
+            .ok_or_else(|| AuthError::Protocol("Missing XBL Token".to_string()))?;
+        let user_hash = xbl_data["DisplayClaims"]["xui"][0]["uhs"]
+            .as_str()
+            .ok_or_else(|| AuthError::Protocol("Missing XBL user hash".to_string()))?;
+
+        // 3. Exchange for XSTS token
+        let xsts_payload = json!({
+            "Properties": {
+                "SandboxId": "RETAIL",
+                "UserTokens": [xbl_token]
+            },
+            "RelyingParty": "rp://api.minecraftservices.com/",
+            "TokenType": "JWT"
+        });
+
+        let xsts_resp = self
+            .client
+            .post(XSTS_AUTH_ENDPOINT)
+            .json(&xsts_payload)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let xsts_data: serde_json::Value = xsts_resp.json().await?;
+        let xsts_token = xsts_data["Token"]
+            .as_str()
+            .ok_or_else(|| AuthError::Protocol("Missing XSTS Token".to_string()))?;
+
+        // 4. Exchange for Minecraft Services Bearer Token
+        let mc_payload = json!({
+            "identityToken": format!("XBL3.0 x={};{}", user_hash, xsts_token)
+        });
+
+        let mc_resp = self
+            .client
+            .post(MC_AUTH_ENDPOINT)
+            .json(&mc_payload)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        let mc_data: serde_json::Value = mc_resp.json().await?;
+        let mc_access_token = mc_data["access_token"]
+            .as_str()
+            .ok_or_else(|| AuthError::Protocol("Missing Minecraft access token".to_string()))?
+            .to_string();
+
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+
+        // Update in-memory account
+        if let Some(acc) = self.accounts.get_mut(account_id) {
+            acc.access_token = Some(mc_access_token.clone());
+            acc.last_login = now;
+        }
+
+        info!(
+            "Successfully refreshed Minecraft session token for account: {}",
+            account_id
+        );
+        Ok(mc_access_token)
+    }
+
+    /// Retrieve an existing valid token or refresh Microsoft token from OS keyring vault if needed.
+    pub async fn get_or_refresh_token(&mut self, account_id: &str) -> Result<String, AuthError> {
+        let account = self
+            .accounts
+            .get(account_id)
+            .ok_or_else(|| AuthError::Protocol(format!("Account ID '{}' not found", account_id)))?;
+
+        if account.account_type != "microsoft" {
+            return Ok("0".to_string());
+        }
+
+        if let Some(ref tok) = account.access_token {
+            if !tok.is_empty() && tok != "0" {
+                return Ok(tok.clone());
+            }
+        }
+
+        self.refresh_account_token(account_id).await
+    }
 }
 
 /// Simple MD5 implementation for standard offline Minecraft player UUID derivation.
@@ -376,7 +536,12 @@ fn md5_hash(data: &[u8]) -> [u8; 16] {
     for chunk in padded.chunks(64) {
         let mut w = [0u32; 16];
         for (i, w_val) in w.iter_mut().enumerate() {
-            *w_val = u32::from_le_bytes([chunk[i * 4], chunk[i * 4 + 1], chunk[i * 4 + 2], chunk[i * 4 + 3]]);
+            *w_val = u32::from_le_bytes([
+                chunk[i * 4],
+                chunk[i * 4 + 1],
+                chunk[i * 4 + 2],
+                chunk[i * 4 + 3],
+            ]);
         }
 
         let mut a = state[0];

@@ -153,39 +153,117 @@ impl LaunchArgumentBuilder {
         let mut args: Vec<String> = Vec::new();
 
         // 1. Java executable binary
-        args.push(dunce::simplified(&ctx.java_executable).to_string_lossy().to_string());
+        args.push(
+            dunce::simplified(&ctx.java_executable)
+                .to_string_lossy()
+                .to_string(),
+        );
 
         // 2. Memory allocations
         args.push(format!("-Xms{}M", ctx.min_memory_mb));
         args.push(format!("-Xmx{}M", ctx.max_memory_mb));
 
-        // 3. Native library path
-        let natives_dir = dunce::simplified(&ctx.instance_dir.join("natives")).to_path_buf();
-        args.push(format!(
-            "-Djava.library.path={}",
-            natives_dir.to_string_lossy()
-        ));
-
-        // 4. Performance preset flags
+        // 3. Performance preset flags
         if let Some(ref preset) = ctx.performance_preset {
             args.extend(get_performance_jvm_flags(preset));
         }
 
-        // 5. Custom user JVM flags
+        // 4. Custom user JVM flags
         if let Some(ref custom_args) = ctx.custom_jvm_args {
             args.extend(custom_args.clone());
         }
 
-        // 6. Standard launcher brand identifiers
-        args.push("-Dminecraft.launcher.brand=DigitalVigital".to_string());
-        args.push(format!("-Dminecraft.launcher.version={}", crate::branding::APP_VERSION));
-
-        // 6. Classpath
+        let natives_dir = dunce::simplified(&ctx.instance_dir.join("natives")).to_path_buf();
         let classpath = Self::build_classpath(ctx);
-        args.push("-cp".to_string());
-        args.push(classpath);
 
-        // 7. Main Class (supports mod loaders like KnotClient or FML)
+        // 5. Modern Mojang arguments.jvm vs Legacy fallback
+        let mut has_classpath_in_jvm = false;
+
+        if let Some(jvm_args_val) = ctx
+            .version_package
+            .arguments
+            .as_ref()
+            .and_then(|a| a.get("jvm"))
+        {
+            if let Some(jvm_args_arr) = jvm_args_val.as_array() {
+                for item in jvm_args_arr {
+                    if let Some(arg_str) = item.as_str() {
+                        let substituted = substitute_jvm_arg(
+                            arg_str,
+                            &natives_dir,
+                            &classpath,
+                            &ctx.libraries_dir,
+                        );
+                        if substituted.contains(&classpath) || arg_str == "-cp" {
+                            has_classpath_in_jvm = true;
+                        }
+                        args.push(substituted);
+                    } else if let Some(obj) = item.as_object() {
+                        if evaluate_argument_rules(obj) {
+                            if let Some(val_str) = obj.get("value").and_then(|v| v.as_str()) {
+                                let substituted = substitute_jvm_arg(
+                                    val_str,
+                                    &natives_dir,
+                                    &classpath,
+                                    &ctx.libraries_dir,
+                                );
+                                if substituted.contains(&classpath) || val_str == "-cp" {
+                                    has_classpath_in_jvm = true;
+                                }
+                                args.push(substituted);
+                            } else if let Some(val_arr) =
+                                obj.get("value").and_then(|v| v.as_array())
+                            {
+                                for v_item in val_arr {
+                                    if let Some(v_str) = v_item.as_str() {
+                                        let substituted = substitute_jvm_arg(
+                                            v_str,
+                                            &natives_dir,
+                                            &classpath,
+                                            &ctx.libraries_dir,
+                                        );
+                                        if substituted.contains(&classpath) || v_str == "-cp" {
+                                            has_classpath_in_jvm = true;
+                                        }
+                                        args.push(substituted);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Fallback for versions without arguments.jvm (1.12.2 and older) or incomplete manifests
+        if !has_classpath_in_jvm {
+            if !args.iter().any(|a| a.starts_with("-Djava.library.path=")) {
+                args.push(format!(
+                    "-Djava.library.path={}",
+                    natives_dir.to_string_lossy()
+                ));
+            }
+            if !args
+                .iter()
+                .any(|a| a.starts_with("-Dminecraft.launcher.brand="))
+            {
+                args.push("-Dminecraft.launcher.brand=DigitalVigital".to_string());
+                args.push(format!(
+                    "-Dminecraft.launcher.version={}",
+                    crate::branding::APP_VERSION
+                ));
+            }
+            args.push("-cp".to_string());
+            args.push(classpath);
+        }
+
+        // macOS GLFW thread initialization requirement
+        #[cfg(target_os = "macos")]
+        if !args.iter().any(|a| a == "-XstartOnFirstThread") {
+            args.push("-XstartOnFirstThread".to_string());
+        }
+
+        // 6. Main Class (supports mod loaders like KnotClient or FML)
         let main_class = ctx
             .main_class_override
             .as_deref()
@@ -198,11 +276,15 @@ impl LaunchArgumentBuilder {
         substitutions.insert("${version_name}", ctx.version_package.id.clone());
         substitutions.insert(
             "${game_directory}",
-            dunce::simplified(&ctx.game_dir).to_string_lossy().to_string(),
+            dunce::simplified(&ctx.game_dir)
+                .to_string_lossy()
+                .to_string(),
         );
         substitutions.insert(
             "${assets_root}",
-            dunce::simplified(&ctx.assets_dir).to_string_lossy().to_string(),
+            dunce::simplified(&ctx.assets_dir)
+                .to_string_lossy()
+                .to_string(),
         );
         substitutions.insert(
             "${assets_index_name}",
@@ -243,7 +325,9 @@ impl LaunchArgumentBuilder {
                                         val = val.replace(key, replacement);
                                     }
                                     raw_game_args.push(val);
-                                } else if let Some(val_arr) = obj.get("value").and_then(|v| v.as_array()) {
+                                } else if let Some(val_arr) =
+                                    obj.get("value").and_then(|v| v.as_array())
+                                {
                                     for v_item in val_arr {
                                         if let Some(v_str) = v_item.as_str() {
                                             let mut val = v_str.to_string();
@@ -301,6 +385,32 @@ impl LaunchArgumentBuilder {
     }
 }
 
+/// Substitute Mojang template placeholders in JVM arguments (${natives_directory}, ${classpath}, etc.).
+fn substitute_jvm_arg(
+    arg: &str,
+    natives_dir: &std::path::Path,
+    classpath: &str,
+    libraries_dir: &std::path::Path,
+) -> String {
+    let sep = if cfg!(target_os = "windows") {
+        ";"
+    } else {
+        ":"
+    };
+    arg.replace(
+        "${natives_directory}",
+        &dunce::simplified(natives_dir).to_string_lossy(),
+    )
+    .replace("${launcher_name}", "DigitalVigital")
+    .replace("${launcher_version}", crate::branding::APP_VERSION)
+    .replace("${classpath}", classpath)
+    .replace("${classpath_separator}", sep)
+    .replace(
+        "${library_directory}",
+        &dunce::simplified(libraries_dir).to_string_lossy(),
+    )
+}
+
 /// Evaluates conditional rules on an argument object from Mojang version JSON.
 fn evaluate_argument_rules(obj: &serde_json::Map<String, serde_json::Value>) -> bool {
     if let Some(rules_arr) = obj.get("rules").and_then(|r| r.as_array()) {
@@ -314,20 +424,56 @@ fn evaluate_argument_rules(obj: &serde_json::Map<String, serde_json::Value>) -> 
                 }
             }
             if let Some(os) = rule.get("os").and_then(|o| o.as_object()) {
+                let current_os = if cfg!(target_os = "windows") {
+                    "windows"
+                } else if cfg!(target_os = "macos") {
+                    "osx"
+                } else {
+                    "linux"
+                };
+
+                let current_arch = if cfg!(target_arch = "x86_64") {
+                    "x86_64"
+                } else if cfg!(target_arch = "aarch64") {
+                    "arm64"
+                } else if cfg!(target_arch = "x86") {
+                    "x86"
+                } else {
+                    "unknown"
+                };
+
+                let mut matches_rule = true;
+
                 if let Some(os_name) = os.get("name").and_then(|n| n.as_str()) {
-                    let current_os = if cfg!(target_os = "windows") {
-                        "windows"
-                    } else if cfg!(target_os = "macos") {
-                        "osx"
-                    } else {
-                        "linux"
-                    };
-                    if let Some(action) = rule.get("action").and_then(|a| a.as_str()) {
-                        if (action == "allow" && os_name != current_os)
-                            || (action == "disallow" && os_name == current_os)
-                        {
-                            return false;
+                    if os_name != current_os {
+                        matches_rule = false;
+                    }
+                }
+
+                if let Some(arch) = os.get("arch").and_then(|a| a.as_str()) {
+                    let arch_matches = match arch {
+                        "x86_64" | "amd64" => current_arch == "x86_64",
+                        "arm64" | "aarch64" => current_arch == "arm64",
+                        "x86" | "i386" | "i686" => current_arch == "x86",
+                        pattern => {
+                            if let Ok(re) = regex::Regex::new(pattern) {
+                                re.is_match(current_arch)
+                            } else {
+                                pattern.eq_ignore_ascii_case(current_arch)
+                            }
                         }
+                    };
+                    if !arch_matches {
+                        matches_rule = false;
+                    }
+                }
+
+                if let Some(action) = rule.get("action").and_then(|a| a.as_str()) {
+                    if action == "allow" && !matches_rule {
+                        return false;
+                    }
+                    if action == "disallow" && matches_rule {
+                        return false;
                     }
                 }
             }
@@ -463,6 +609,81 @@ mod tests {
     }
 
     #[test]
+    fn test_launch_argument_builder_modern_arguments_jvm() {
+        let temp = tempdir().unwrap();
+        let client_jar = temp.path().join("1.21.4.jar");
+        std::fs::write(&client_jar, b"mock client jar").unwrap();
+
+        let jvm_args = vec![
+            serde_json::Value::String("-Djava.library.path=${natives_directory}".to_string()),
+            serde_json::Value::String("-Dcustom.launcher=${launcher_name}".to_string()),
+            serde_json::Value::String("-cp".to_string()),
+            serde_json::Value::String("${classpath}".to_string()),
+        ];
+
+        let mut arguments = HashMap::new();
+        arguments.insert("jvm".to_string(), serde_json::Value::Array(jvm_args));
+
+        let version_pkg = VersionPackage {
+            id: "1.21.4".to_string(),
+            version_type: "release".to_string(),
+            main_class: "net.minecraft.client.main.Main".to_string(),
+            minecraft_arguments: None,
+            arguments: Some(arguments),
+            downloads: VersionDownloads {
+                client: DownloadArtifact {
+                    sha1: "abc".to_string(),
+                    size: 1000,
+                    url: "https://mock/client.jar".to_string(),
+                    path: None,
+                },
+                server: None,
+                client_mappings: None,
+            },
+            libraries: Vec::new(),
+            asset_index: AssetIndexRef {
+                id: "17".to_string(),
+                sha1: "def".to_string(),
+                size: 500,
+                url: "https://mock/17.json".to_string(),
+                total_size: 500,
+            },
+            assets: "17".to_string(),
+            java_version: None,
+            compliance_level: 0,
+        };
+
+        let ctx = LaunchContext {
+            version_package: version_pkg,
+            instance_dir: temp.path().join("instance"),
+            game_dir: temp.path().join("instance").join(".minecraft"),
+            assets_dir: temp.path().join("assets"),
+            libraries_dir: temp.path().join("libraries"),
+            client_jar_path: client_jar,
+            java_executable: PathBuf::from("C:/Java/bin/java.exe"),
+            player_name: "Tester".to_string(),
+            player_uuid: "12345678-1234-1234-1234-1234567890ab".to_string(),
+            access_token: "mock_token".to_string(),
+            user_type: "msa".to_string(),
+            xuid: "".to_string(),
+            min_memory_mb: 2048,
+            max_memory_mb: 4096,
+            window_width: 1280,
+            window_height: 720,
+            custom_jvm_args: None,
+            performance_preset: None,
+            mod_loader: "vanilla".to_string(),
+            extra_classpath: Vec::new(),
+            main_class_override: None,
+            extra_game_args: Vec::new(),
+        };
+
+        let args = LaunchArgumentBuilder::build_command_args(&ctx);
+        assert!(args.contains(&"-Dcustom.launcher=DigitalVigital".to_string()));
+        assert!(args.iter().any(|a| a.starts_with("-Djava.library.path=")));
+    }
+
+    #[test]
     fn test_launch_argument_builder_fabric_mod_loader() {
         let temp = tempdir().unwrap();
         let client_jar = temp.path().join("1.21.4.jar");
@@ -517,11 +738,15 @@ mod tests {
             max_memory_mb: 4096,
             window_width: 1280,
             window_height: 720,
-            custom_jvm_args: Some(vec!["-DFabricMcEmu= net.minecraft.client.main.Main ".to_string()]),
+            custom_jvm_args: Some(vec![
+                "-DFabricMcEmu= net.minecraft.client.main.Main ".to_string()
+            ]),
             performance_preset: None,
             mod_loader: "fabric".to_string(),
             extra_classpath: vec![fabric_jar],
-            main_class_override: Some("net.fabricmc.loader.impl.launch.knot.KnotClient".to_string()),
+            main_class_override: Some(
+                "net.fabricmc.loader.impl.launch.knot.KnotClient".to_string(),
+            ),
             extra_game_args: Vec::new(),
         };
 
@@ -530,7 +755,10 @@ mod tests {
         // Verify KnotClient is the main class
         assert!(args.contains(&"net.fabricmc.loader.impl.launch.knot.KnotClient".to_string()));
         // Verify vanilla main is NOT the entry main class
-        assert_ne!(args[args.iter().position(|r| r == "-cp").unwrap() + 2], "net.minecraft.client.main.Main");
+        assert_ne!(
+            args[args.iter().position(|r| r == "-cp").unwrap() + 2],
+            "net.minecraft.client.main.Main"
+        );
         // Verify Fabric JVM emulator flag is included
         assert!(args.contains(&"-DFabricMcEmu= net.minecraft.client.main.Main ".to_string()));
         // Verify gameDir is present

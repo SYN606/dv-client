@@ -1,6 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-//! Digital Vigital (DV) — High-Performance Native Desktop Minecraft Launcher
+//! Digital Vigital (DV) - High-Performance Native Desktop Minecraft Launcher
 //!
 //! Powered by an independent Rust application engine and native Slint desktop UI.
 //! Eliminates external Python runtimes, insecure XOR credentials, and unauthorized telemetry.
@@ -12,11 +12,12 @@ use dv_launcher::discord::DiscordRpcHandle;
 use dv_launcher::gpu_detector::GpuDetector;
 use dv_launcher::instances::InstanceManager;
 use dv_launcher::java_detector::JavaDetector;
-use dv_launcher::minecraft::{
-    DownloadProgress, InstallationPipeline, LaunchArgumentBuilder, LaunchContext,
-    ProcessState, ProcessSupervisor,
-};
+use dv_launcher::java_installer::JavaInstaller;
 use dv_launcher::loaders::ModrinthClient;
+use dv_launcher::minecraft::{
+    DownloadProgress, InstallationPipeline, LaunchArgumentBuilder, LaunchContext, ProcessState,
+    ProcessSupervisor,
+};
 use dv_launcher::ui::{
     AccountItem, DownloadItem, GpuItem, InstanceItem, JavaItem, MainWindow, ModItem, OnlineModItem,
 };
@@ -32,6 +33,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Starting {} v{}", branding::APP_NAME, branding::APP_VERSION);
 
     // Register Wayland app_id and verify desktop integration (XDG .desktop & icon)
+    #[cfg(target_os = "linux")]
     let _ = slint::set_xdg_app_id(dv_launcher::desktop::DESKTOP_APP_ID);
     dv_launcher::desktop::ensure_desktop_integration();
 
@@ -39,7 +41,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let config_mgr = Arc::new(Mutex::new(ConfigManager::new::<&str>(None)?));
     let (instances_dir, base_data_dir) = {
         let mgr = config_mgr.lock().await;
-        (mgr.config.instances_dir(), mgr.config.base_path().to_path_buf())
+        (
+            mgr.config.instances_dir(),
+            mgr.config.base_path().to_path_buf(),
+        )
     };
 
     let instance_mgr = Arc::new(Mutex::new(InstanceManager::new(&instances_dir)?));
@@ -69,11 +74,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let main_window = MainWindow::new()?;
 
+    let has_any_java = !detected_javas.is_empty();
+    let has_java_21 = detected_javas.iter().any(|j| j.major_version >= 21);
+    main_window.set_has_java(has_any_java);
+    main_window.set_has_java_21(has_java_21);
+
     // Populate UI initial state
     let java_display = if let Some(ref j) = best_java {
         j.display_name.clone()
     } else {
-        "Java Not Found on PATH (Configure in Settings)".to_string()
+        "Java Not Found on System (Install Java 21 Below)".to_string()
     };
     main_window.set_java_runtime_display(SharedString::from(&java_display));
 
@@ -129,9 +139,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         main_window.set_selected_gpu_display(SharedString::from(&current_gpu_name));
 
         if let Some(ref custom_j) = mgr.config.default_java_path {
-            main_window.set_custom_java_path(SharedString::from(
-                custom_j.to_string_lossy().to_string(),
-            ));
+            main_window
+                .set_custom_java_path(SharedString::from(custom_j.to_string_lossy().to_string()));
         }
 
         let preset = mgr.config.performance_preset.clone();
@@ -246,7 +255,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         drop(im);
 
                         if on_launch == "close" || on_launch == "hide" {
-                            info!("Hiding launcher window during gameplay (On-Launch: {})", on_launch);
+                            info!(
+                                "Hiding launcher window during gameplay (On-Launch: {})",
+                                on_launch
+                            );
                             let ui_hide = ui_w.clone();
                             let _ = slint::invoke_from_event_loop(move || {
                                 if let Some(ui) = ui_hide.upgrade() {
@@ -297,11 +309,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             }
                             ProcessState::Exited(code) => {
                                 ui.set_is_running(false);
-                                ui.set_game_status(SharedString::from(format!("Exited (code {})", code)));
+                                ui.set_game_status(SharedString::from(format!(
+                                    "Exited (code {})",
+                                    code
+                                )));
                             }
                             ProcessState::Crashed(code) => {
                                 ui.set_is_running(false);
-                                ui.set_game_status(SharedString::from(format!("Crashed (code {})", code)));
+                                ui.set_game_status(SharedString::from(format!(
+                                    "Crashed (code {})",
+                                    code
+                                )));
                             }
                             ProcessState::Stopped => {
                                 ui.set_is_running(false);
@@ -404,12 +422,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 };
 
-                let java_path = inst
+                let java_candidate_path = inst
                     .custom_java_path
                     .clone()
                     .or_else(|| config_clone.default_java_path.clone())
-                    .or_else(|| java_opt.map(|j| j.path))
-                    .unwrap_or_else(|| PathBuf::from("java"));
+                    .or_else(|| java_opt.map(|j| j.path));
+
+                let java_path = match java_candidate_path {
+                    Some(ref p) if p.exists() => p.clone(),
+                    _ => {
+                        // Attempt fallback to first detected Java on system
+                        if let Some(detected) = JavaDetector::scan_system().into_iter().next() {
+                            detected.path
+                        } else {
+                            let _ = slint::invoke_from_event_loop({
+                                let ui_w = ui_w.clone();
+                                move || {
+                                    if let Some(ui) = ui_w.upgrade() {
+                                        ui.set_game_status(SharedString::from(
+                                            "Java 21 Required. Please click 'Install Java 21'.",
+                                        ));
+                                        ui.set_is_launching(false);
+                                    }
+                                }
+                            });
+                            return;
+                        }
+                    }
+                };
 
                 let pipeline = InstallationPipeline::new(&config_clone);
                 let inst_dir = inst.instance_dir(config_clone.instances_dir());
@@ -501,6 +541,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Ensure universal player skin & cape resource pack is synchronized and enabled in game options
                 let _ = dv_launcher::skins::ensure_in_game_skin_pack(&game_dir, &account.username);
 
+                // Ensure valid Microsoft access token via OS keyring refresh if expired
+                let access_token = {
+                    let mut a = auth.lock().await;
+                    match a.get_or_refresh_token(&account.id).await {
+                        Ok(tok) => tok,
+                        Err(e) => {
+                            warn!("Microsoft token refresh error: {}. Using existing token or offline fallback.", e);
+                            account.access_token.clone().unwrap_or_else(|| "0".to_string())
+                        }
+                    }
+                };
+
                 let launch_ctx = LaunchContext {
                     version_package: version_pkg,
                     instance_dir: inst_dir.clone(),
@@ -511,7 +563,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     java_executable: java_path,
                     player_name: account.username,
                     player_uuid: account.id,
-                    access_token: account.access_token.unwrap_or_else(|| "0".to_string()),
+                    access_token,
                     user_type: if account.account_type == "microsoft" {
                         "msa".to_string()
                     } else {
@@ -595,7 +647,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_start.upgrade() {
                             ui.set_is_downloading(true);
-                            ui.set_download_status_text(SharedString::from("Verifying client JAR & libraries..."));
+                            ui.set_download_status_text(SharedString::from(
+                                "Verifying client JAR & libraries...",
+                            ));
                             ui.set_game_status(SharedString::from("Verifying integrity..."));
                         }
                     });
@@ -630,7 +684,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     )));
                                 }
                                 Err(e) => {
-                                    ui.set_game_status(SharedString::from(format!("Verification failed: {}", e)));
+                                    ui.set_game_status(SharedString::from(format!(
+                                        "Verification failed: {}",
+                                        e
+                                    )));
                                 }
                             }
                         }
@@ -667,7 +724,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_start.upgrade() {
                             ui.set_is_downloading(true);
-                            ui.set_download_status_text(SharedString::from("Checking & repairing sound/texture assets..."));
+                            ui.set_download_status_text(SharedString::from(
+                                "Checking & repairing sound/texture assets...",
+                            ));
                             ui.set_game_status(SharedString::from("Repairing assets..."));
                         }
                     });
@@ -702,7 +761,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                     )));
                                 }
                                 Err(e) => {
-                                    ui.set_game_status(SharedString::from(format!("Asset repair failed: {}", e)));
+                                    ui.set_game_status(SharedString::from(format!(
+                                        "Asset repair failed: {}",
+                                        e
+                                    )));
                                 }
                             }
                         }
@@ -724,7 +786,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let dir_opt = {
                     let im = inst_mgr.lock().await;
                     let cm = cfg.lock().await;
-                    im.get_active_instance(&cm.config).map(|i| i.game_dir(cm.config.instances_dir()))
+                    im.get_active_instance(&cm.config)
+                        .map(|i| i.game_dir(cm.config.instances_dir()))
                 };
                 if let Some(dir) = dir_opt {
                     let _ = std::fs::create_dir_all(&dir);
@@ -747,7 +810,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let dir_opt = {
                     let im = inst_mgr.lock().await;
                     let cm = cfg.lock().await;
-                    im.get_instance(&id_str).map(|i| i.game_dir(cm.config.instances_dir()))
+                    im.get_instance(&id_str)
+                        .map(|i| i.game_dir(cm.config.instances_dir()))
                 };
                 if let Some(dir) = dir_opt {
                     let _ = std::fs::create_dir_all(&dir);
@@ -1071,7 +1135,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let inst_mgr = im.lock().await;
                         let cfg_mgr = cf.lock().await;
                         if let Some(inst) = inst_mgr.get_active_instance(&cfg_mgr.config) {
-                            let mods_dir = inst.game_dir(cfg_mgr.config.instances_dir()).join("mods");
+                            let mods_dir =
+                                inst.game_dir(cfg_mgr.config.instances_dir()).join("mods");
                             let _ = dv_launcher::instances::import_mod_file(&mods_dir, &src_path);
                         }
                     }
@@ -1153,7 +1218,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 } else {
                                     (slint::Image::default(), false)
                                 };
-                                let initial = m.title.chars().next().unwrap_or('M').to_uppercase().to_string();
+                                let initial = m
+                                    .title
+                                    .chars()
+                                    .next()
+                                    .unwrap_or('M')
+                                    .to_uppercase()
+                                    .to_string();
 
                                 OnlineModItem {
                                     project_id: SharedString::from(m.project_id),
@@ -1202,9 +1273,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 };
 
                 let modrinth = ModrinthClient::new();
-                match modrinth.install_mod(&slug_str, &mc_ver, &loader, &mods_dir).await {
+                match modrinth
+                    .install_mod(&slug_str, &mc_ver, &loader, &mods_dir)
+                    .await
+                {
                     Ok(jar_name) => {
-                        info!("Successfully installed online mod {} ({})", slug_str, jar_name);
+                        info!(
+                            "Successfully installed online mod {} ({})",
+                            slug_str, jar_name
+                        );
                     }
                     Err(e) => {
                         error!("Failed to install mod {}: {}", slug_str, e);
@@ -1287,7 +1364,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let _ = slint::invoke_from_event_loop(move || {
                             if let Some(ui) = ui_succ.upgrade() {
                                 ui.set_offline_username_input(SharedString::from(""));
-                                ui.set_username_hint(SharedString::from("Account configured successfully ✓"));
+                                ui.set_username_hint(SharedString::from(
+                                    "Account configured successfully",
+                                ));
                                 ui.set_is_username_valid(false);
                             }
                         });
@@ -1321,7 +1400,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 } else {
                     match MicrosoftAuthClient::validate_offline_username(&name_str) {
                         Ok(()) => {
-                            ui.set_username_hint(SharedString::from("Valid Minecraft username ✓"));
+                            ui.set_username_hint(SharedString::from("Valid Minecraft username"));
                             ui.set_is_username_valid(true);
                         }
                         Err(err) => {
@@ -1348,16 +1427,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let url = a.generate_login_url();
                 info!("Generated Microsoft OAuth URL: {}", url);
 
+                // Automatically launch system default browser for smooth 1-click UX
+                #[cfg(target_os = "windows")]
+                {
+                    use std::os::windows::process::CommandExt;
+                    let mut cmd = std::process::Command::new("rundll32");
+                    cmd.args(["url.dll,FileProtocolHandler", &url]);
+                    cmd.creation_flags(0x08000000);
+                    let _ = cmd.spawn();
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    let _ = std::process::Command::new("xdg-open").arg(&url).spawn();
+                }
+
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_w.upgrade() {
                         ui.set_auth_login_url(SharedString::from(&url));
                         let mut out = ui.get_console_output().to_string();
                         out.push_str(&format!(
-                            "\n[Microsoft Auth] Open this URL in browser to authenticate:\n{}\nPaste the returned code into the field above and click 'Confirm Login'.\n",
+                            "\n[Microsoft Auth] Opening authentication in your web browser...\nURL: {}\nAfter signing in, paste the authorization code (or the full redirect URL) into the box on the Accounts page and click 'Confirm Login'.\n",
                             url
                         ));
                         ui.set_console_output(SharedString::from(out));
-                        ui.set_active_tab(5); // Switch to console view
+                        ui.set_active_tab(4); // Keep user on Accounts tab for immediate code entry
                     }
                 });
             });
@@ -1371,10 +1464,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let ui_weak = main_window.as_weak();
 
         main_window.on_complete_ms_auth_clicked(move || {
-            let code = if let Some(ui) = ui_weak.upgrade() {
+            let raw_code = if let Some(ui) = ui_weak.upgrade() {
                 ui.get_auth_code_input().to_string()
             } else {
                 return;
+            };
+
+            // Smart extraction: support raw code or user pasting the full redirect URL
+            let code = if raw_code.contains("code=") {
+                raw_code
+                    .split("code=")
+                    .nth(1)
+                    .and_then(|s| s.split('&').next())
+                    .unwrap_or(&raw_code)
+                    .trim()
+                    .to_string()
+            } else {
+                raw_code.trim().to_string()
             };
 
             let auth = auth_arc.clone();
@@ -1455,7 +1561,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     if let Some((active_user, is_ms)) = acc_opt {
                         let _ = dv_launcher::skins::save_custom_skin(&active_user, &src_path);
-                        dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
+                        dv_launcher::skins::sync_universal_skin_to_instances(
+                            &instances_dir,
+                            &active_user,
+                        );
                         dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
                     }
                 }
@@ -1497,7 +1606,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     if let Some((active_user, is_ms)) = acc_opt {
                         let _ = dv_launcher::skins::save_custom_cape(&active_user, &src_path);
-                        dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
+                        dv_launcher::skins::sync_universal_skin_to_instances(
+                            &instances_dir,
+                            &active_user,
+                        );
                         dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
                     }
                 }
@@ -1528,7 +1640,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 if let Some((active_user, is_ms)) = acc_opt {
                     dv_launcher::skins::reset_player_skin(&active_user);
-                    dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
+                    dv_launcher::skins::sync_universal_skin_to_instances(
+                        &instances_dir,
+                        &active_user,
+                    );
                     dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
                 }
             });
@@ -1558,7 +1673,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 if let Some((active_user, is_ms)) = acc_opt {
                     dv_launcher::skins::reset_player_cape(&active_user);
-                    dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
+                    dv_launcher::skins::sync_universal_skin_to_instances(
+                        &instances_dir,
+                        &active_user,
+                    );
                     dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
                 }
             });
@@ -1588,7 +1706,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 if let Some((active_user, is_ms)) = acc_opt {
                     dv_launcher::skins::ensure_preset_capes();
-                    dv_launcher::skins::sync_universal_skin_to_instances(&instances_dir, &active_user);
+                    dv_launcher::skins::sync_universal_skin_to_instances(
+                        &instances_dir,
+                        &active_user,
+                    );
                     dispatch_refresh_player_appearance(ui_w, &active_user, is_ms).await;
                 }
             });
@@ -1602,6 +1723,231 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             if let Some(ui) = ui_weak.upgrade() {
                 ui.set_console_output(SharedString::from(""));
             }
+        });
+    }
+
+    // Callback: OPEN IN NOTEPAD
+    {
+        let cfg_arc = config_mgr.clone();
+        let inst_arc = instance_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_open_in_notepad_clicked(move || {
+            let cfg = cfg_arc.clone();
+            let inst_mgr = inst_arc.clone();
+            let ui_w = ui_weak.clone();
+
+            tokio::spawn(async move {
+                let (game_dir, log_content) = {
+                    let cm = cfg.lock().await;
+                    let im = inst_mgr.lock().await;
+                    let dir = im
+                        .get_active_instance(&cm.config)
+                        .map(|i| i.game_dir(cm.config.instances_dir()));
+                    let content = if let Some(ui) = ui_w.upgrade() {
+                        ui.get_console_output().to_string()
+                    } else {
+                        String::new()
+                    };
+                    (dir, content)
+                };
+
+                let target_file = if let Some(ref dir) = game_dir {
+                    let logs_dir = dir.join("logs");
+                    let _ = std::fs::create_dir_all(&logs_dir);
+                    let latest_log = logs_dir.join("latest.log");
+                    if latest_log.exists()
+                        && std::fs::metadata(&latest_log)
+                            .map(|m| m.len() > 0)
+                            .unwrap_or(false)
+                    {
+                        latest_log
+                    } else {
+                        let launcher_log = logs_dir.join("launcher_console.log");
+                        let _ = std::fs::write(&launcher_log, &log_content);
+                        launcher_log
+                    }
+                } else {
+                    let temp_log = std::env::temp_dir().join("dv_launcher_latest.log");
+                    let _ = std::fs::write(&temp_log, &log_content);
+                    temp_log
+                };
+
+                open_in_notepad(&target_file);
+            });
+        });
+    }
+
+    // Callback: OPEN CRASH REPORT
+    {
+        let cfg_arc = config_mgr.clone();
+        let inst_arc = instance_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_open_crash_report_clicked(move || {
+            let cfg = cfg_arc.clone();
+            let inst_mgr = inst_arc.clone();
+            let ui_w = ui_weak.clone();
+
+            tokio::spawn(async move {
+                let game_dir = {
+                    let cm = cfg.lock().await;
+                    let im = inst_mgr.lock().await;
+                    im.get_active_instance(&cm.config).map(|i| i.game_dir(cm.config.instances_dir()))
+                };
+
+                if let Some(dir) = game_dir {
+                    let crash_dir = dir.join("crash-reports");
+                    let mut latest_crash: Option<(std::path::PathBuf, std::time::SystemTime)> = None;
+
+                    if crash_dir.exists() {
+                        if let Ok(entries) = std::fs::read_dir(&crash_dir) {
+                            for entry in entries.flatten() {
+                                let path = entry.path();
+                                if path.is_file() && path.extension().and_then(|s| s.to_str()) == Some("txt") {
+                                    if let Ok(meta) = entry.metadata() {
+                                        if let Ok(mod_time) = meta.modified() {
+                                            if latest_crash.as_ref().map(|(_, t)| mod_time > *t).unwrap_or(true) {
+                                                latest_crash = Some((path, mod_time));
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if let Some((crash_file, _)) = latest_crash {
+                        info!("Opening crash report in notepad: {:?}", crash_file);
+                        open_in_notepad(&crash_file);
+                    } else {
+                        let _ = std::fs::create_dir_all(&crash_dir);
+                        let _ = dv_launcher::instances::open_mods_folder(&crash_dir);
+
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(ui) = ui_w.upgrade() {
+                                let mut out = ui.get_console_output().to_string();
+                                out.push_str("\n[DV Launcher] No crash reports found in instance directory. (Opened folder)\n");
+                                ui.set_console_output(SharedString::from(out));
+                            }
+                        });
+                    }
+                }
+            });
+        });
+    }
+
+    // Callback: INSTALL JAVA 21 FOR WINDOWS
+    {
+        let ui_weak = main_window.as_weak();
+        let cfg_arc = config_mgr.clone();
+
+        main_window.on_install_java_clicked(move || {
+            let ui_w = ui_weak.clone();
+            let cfg = cfg_arc.clone();
+
+            tokio::spawn(async move {
+                let _ = slint::invoke_from_event_loop({
+                    let ui_w = ui_w.clone();
+                    move || {
+                        if let Some(ui) = ui_w.upgrade() {
+                            ui.set_is_installing_java(true);
+                            ui.set_java_install_progress(0.05);
+                            ui.set_java_install_status(SharedString::from(
+                                "Connecting to Adoptium for Eclipse Temurin Java 21...",
+                            ));
+                        }
+                    }
+                });
+
+                let runtimes_dir = {
+                    let cm = cfg.lock().await;
+                    cm.config.runtimes_dir()
+                };
+
+                let ui_for_progress = ui_w.clone();
+                let progress_cb = move |progress: f32, status: &str| {
+                    let status_str = status.to_string();
+                    let _ = slint::invoke_from_event_loop({
+                        let ui_w = ui_for_progress.clone();
+                        move || {
+                            if let Some(ui) = ui_w.upgrade() {
+                                ui.set_java_install_progress(progress);
+                                ui.set_java_install_status(SharedString::from(status_str));
+                            }
+                        }
+                    });
+                };
+
+                match JavaInstaller::install_java_21(&runtimes_dir, progress_cb).await {
+                    Ok(installed_java_path) => {
+                        info!("Java 21 successfully installed at: {:?}", installed_java_path);
+
+                        // Save in config
+                        {
+                            let mut cm = cfg.lock().await;
+                            cm.config.default_java_path = Some(installed_java_path.clone());
+                            let _ = cm.save();
+                        }
+
+                        // Inspect to get full display name
+                        let disp_name = if let Some(info) =
+                            JavaDetector::inspect_executable(&installed_java_path)
+                        {
+                            info.display_name
+                        } else {
+                            "Eclipse Temurin Java 21 (v21)".to_string()
+                        };
+
+                        // Refresh scanned Javas
+                        let mut all_javas = JavaDetector::scan_system();
+                        if !all_javas.iter().any(|j| j.path == installed_java_path) {
+                            if let Some(info) =
+                                JavaDetector::inspect_executable(&installed_java_path)
+                            {
+                                all_javas.insert(0, info);
+                            }
+                        }
+
+                        let java_items: Vec<JavaItem> = all_javas
+                            .iter()
+                            .map(|j| JavaItem {
+                                path: SharedString::from(j.path.to_string_lossy().to_string()),
+                                vendor: SharedString::from(&j.vendor),
+                                version: SharedString::from(&j.full_version),
+                                display_name: SharedString::from(&j.display_name),
+                            })
+                            .collect();
+
+                        let path_str = installed_java_path.to_string_lossy().to_string();
+
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(ui) = ui_w.upgrade() {
+                                ui.set_is_installing_java(false);
+                                ui.set_has_java(true);
+                                ui.set_has_java_21(true);
+                                ui.set_java_runtime_display(SharedString::from(&disp_name));
+                                ui.set_custom_java_path(SharedString::from(&path_str));
+                                ui.set_java_list(ModelRc::new(VecModel::from(java_items)));
+                                ui.set_java_install_status(SharedString::from(
+                                    "Java 21 installed successfully!",
+                                ));
+                                ui.set_game_status(SharedString::from("Ready to Play"));
+                            }
+                        });
+                    }
+                    Err(e) => {
+                        error!("Failed to install Java 21: {}", e);
+                        let err_msg = format!("Installation error: {}", e);
+                        let _ = slint::invoke_from_event_loop(move || {
+                            if let Some(ui) = ui_w.upgrade() {
+                                ui.set_is_installing_java(false);
+                                ui.set_java_install_status(SharedString::from(err_msg));
+                            }
+                        });
+                    }
+                }
+            });
         });
     }
 
@@ -1623,6 +1969,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 if let Some(selected) = selected {
                     let path_str = selected.path.to_string_lossy().to_string();
                     let disp = selected.display_name.clone();
+                    let is_21 = selected.major_version >= 21;
 
                     let mut cm = cfg.lock().await;
                     cm.config.default_java_path = Some(selected.path.clone());
@@ -1632,6 +1979,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         if let Some(ui) = ui_w.upgrade() {
                             ui.set_custom_java_path(SharedString::from(&path_str));
                             ui.set_java_runtime_display(SharedString::from(&disp));
+                            ui.set_has_java(true);
+                            ui.set_has_java_21(is_21);
                         }
                     });
                 }
@@ -1657,11 +2006,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                     let disp = info.display_name.clone();
                     let p_str = path.clone();
+                    let is_21 = info.major_version >= 21;
 
                     let _ = slint::invoke_from_event_loop(move || {
                         if let Some(ui) = ui_w.upgrade() {
                             ui.set_custom_java_path(p_str);
                             ui.set_java_runtime_display(SharedString::from(disp));
+                            ui.set_has_java(true);
+                            ui.set_has_java_21(is_21);
                         }
                     });
                 }
@@ -1809,8 +2161,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         ui.set_enable_discord_rpc(def_rpc);
                         ui.set_custom_jvm_args_input(SharedString::from(""));
                         ui.set_on_launch_action(SharedString::from(&def_act));
-                        ui.set_on_launch_action_display(SharedString::from("Hide Launcher (Minimizes RAM)"));
-                        ui.set_settings_save_status(SharedString::from("Reset to Defaults ✓"));
+                        ui.set_on_launch_action_display(SharedString::from(
+                            "Hide Launcher (Minimizes RAM)",
+                        ));
+                        ui.set_settings_save_status(SharedString::from("Reset to Defaults"));
                     }
                 });
             });
@@ -1850,24 +2204,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let rpc = discord_rpc.clone();
 
         main_window.on_save_settings_clicked(move || {
-            let (min_mem, max_mem, width, height, discord_rpc, custom_java, custom_jvm, on_launch, root_dir, profiles_dir, perf_preset) =
-                if let Some(ui) = ui_weak.upgrade() {
-                    (
-                        ui.get_min_memory_mb() as u32,
-                        ui.get_max_memory_mb() as u32,
-                        ui.get_window_width() as u32,
-                        ui.get_window_height() as u32,
-                        ui.get_enable_discord_rpc(),
-                        ui.get_custom_java_path().to_string(),
-                        ui.get_custom_jvm_args_input().to_string(),
-                        ui.get_on_launch_action().to_string(),
-                        ui.get_launcher_root_dir_input().to_string(),
-                        ui.get_profiles_dir_input().to_string(),
-                        ui.get_performance_preset().to_string(),
-                    )
-                } else {
-                    return;
-                };
+            let (
+                min_mem,
+                max_mem,
+                width,
+                height,
+                discord_rpc,
+                custom_java,
+                custom_jvm,
+                on_launch,
+                root_dir,
+                profiles_dir,
+                perf_preset,
+            ) = if let Some(ui) = ui_weak.upgrade() {
+                (
+                    ui.get_min_memory_mb() as u32,
+                    ui.get_max_memory_mb() as u32,
+                    ui.get_window_width() as u32,
+                    ui.get_window_height() as u32,
+                    ui.get_enable_discord_rpc(),
+                    ui.get_custom_java_path().to_string(),
+                    ui.get_custom_jvm_args_input().to_string(),
+                    ui.get_on_launch_action().to_string(),
+                    ui.get_launcher_root_dir_input().to_string(),
+                    ui.get_profiles_dir_input().to_string(),
+                    ui.get_performance_preset().to_string(),
+                )
+            } else {
+                return;
+            };
 
             let cfg = cfg_arc.clone();
             let rpc_c = rpc.clone();
@@ -1910,7 +2275,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_w.upgrade() {
-                        ui.set_settings_save_status(SharedString::from("Settings Saved ✓"));
+                        ui.set_settings_save_status(SharedString::from("Settings Saved"));
                     }
                 });
             });
@@ -2005,7 +2370,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let _ = slint::invoke_from_event_loop(move || {
                     if let Some(ui) = ui_w.upgrade() {
-                        ui.set_settings_save_status(SharedString::from("Asset Cache Purged ✓"));
+                        ui.set_settings_save_status(SharedString::from("Asset Cache Purged"));
                     }
                 });
             });
@@ -2090,6 +2455,29 @@ fn open_browser(url: &str) {
     let _ = std::process::Command::new("open").arg(url).spawn();
     #[cfg(not(any(target_os = "windows", target_os = "macos")))]
     let _ = std::process::Command::new("xdg-open").arg(url).spawn();
+}
+
+fn open_in_notepad<P: AsRef<std::path::Path>>(path: P) {
+    let p = path.as_ref();
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        let clean = dunce::simplified(p);
+        let mut cmd = std::process::Command::new("notepad.exe");
+        cmd.arg(clean);
+        cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW for launcher parent
+        if let Err(e) = cmd.spawn() {
+            warn!("Failed to launch notepad: {}", e);
+        }
+    }
+    #[cfg(target_os = "macos")]
+    {
+        let _ = std::process::Command::new("open").arg("-t").arg(p).spawn();
+    }
+    #[cfg(not(any(target_os = "windows", target_os = "macos")))]
+    {
+        let _ = std::process::Command::new("xdg-open").arg(p).spawn();
+    }
 }
 
 async fn dispatch_refresh_instances(
@@ -2310,7 +2698,13 @@ async fn dispatch_refresh_mods(
                     } else {
                         (slint::Image::default(), false)
                     };
-                    let initial = m.name.chars().next().unwrap_or('M').to_uppercase().to_string();
+                    let initial = m
+                        .name
+                        .chars()
+                        .next()
+                        .unwrap_or('M')
+                        .to_uppercase()
+                        .to_string();
 
                     ModItem {
                         file_name: SharedString::from(m.file_name),
@@ -2349,17 +2743,21 @@ fn handle_download_progress(ui: &MainWindow, prog: &DownloadProgress) {
     ui.set_downloads_completed_count(prog.completed_items as i32);
     ui.set_downloads_total_count(prog.total_items as i32);
 
-    let mut history: Vec<DownloadItem> = ui
-        .get_download_history()
-        .iter()
-        .collect();
+    let mut history: Vec<DownloadItem> = ui.get_download_history().iter().collect();
     if history.len() >= 25 {
         history.remove(0);
     }
     history.push(DownloadItem {
         file_name: SharedString::from(&prog.current_item),
-        status: SharedString::from(if prog.percent >= 100.0 { "Verified" } else { "Downloading" }),
-        size_text: SharedString::from(format!("{:.1} MB", prog.bytes_downloaded as f64 / 1_048_576.0)),
+        status: SharedString::from(if prog.percent >= 100.0 {
+            "Verified"
+        } else {
+            "Downloading"
+        }),
+        size_text: SharedString::from(format!(
+            "{:.1} MB",
+            prog.bytes_downloaded as f64 / 1_048_576.0
+        )),
         is_done: prog.percent >= 100.0,
     });
     ui.set_download_history(ModelRc::new(VecModel::from(history)));
@@ -2418,4 +2816,3 @@ fn restore_windows_window() {
         EnumWindows(enum_proc, current_pid as isize);
     }
 }
-

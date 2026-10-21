@@ -81,7 +81,7 @@ pub struct DownloadRule {
     pub features: Option<HashMap<String, bool>>,
 }
 
-/// Evaluates if a set of download rules permits inclusion on the current OS.
+/// Evaluates if a set of download rules permits inclusion on the current OS and CPU architecture.
 pub fn evaluate_rules(rules: Option<&[DownloadRule]>) -> bool {
     let rules = match rules {
         Some(r) => r,
@@ -101,10 +101,39 @@ pub fn evaluate_rules(rules: Option<&[DownloadRule]>) -> bool {
         "linux"
     };
 
+    let current_arch = if cfg!(target_arch = "x86_64") {
+        "x86_64"
+    } else if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else if cfg!(target_arch = "x86") {
+        "x86"
+    } else {
+        "unknown"
+    };
+
     for rule in rules {
         if let Some(ref os) = rule.os {
             if let Some(ref name) = os.name {
                 if name != current_os {
+                    continue;
+                }
+            }
+
+            if let Some(ref arch) = os.arch {
+                let arch_matches = match arch.as_str() {
+                    "x86_64" | "amd64" => current_arch == "x86_64",
+                    "arm64" | "aarch64" => current_arch == "arm64",
+                    "x86" | "i386" | "i686" => current_arch == "x86",
+                    pattern => {
+                        if let Ok(re) = regex::Regex::new(pattern) {
+                            re.is_match(current_arch)
+                        } else {
+                            pattern.eq_ignore_ascii_case(current_arch)
+                        }
+                    }
+                };
+
+                if !arch_matches {
                     continue;
                 }
             }
@@ -225,5 +254,21 @@ mod tests {
             },
         ];
         assert!(!evaluate_rules(Some(&disallow_current)));
+
+        // Test CPU architecture matching
+        let wrong_arch_rule = vec![DownloadRule {
+            action: "allow".to_string(),
+            os: Some(RuleOS {
+                name: Some(if cfg!(target_os = "windows") {
+                    "windows".to_string()
+                } else {
+                    "linux".to_string()
+                }),
+                version: None,
+                arch: Some("incompatible_cpu_arch_xyz".to_string()),
+            }),
+            features: None,
+        }];
+        assert!(!evaluate_rules(Some(&wrong_arch_rule)));
     }
 }

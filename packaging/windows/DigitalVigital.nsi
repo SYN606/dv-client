@@ -1,5 +1,5 @@
 ; ==============================================================================
-; Digital Vigital (DV) — Premium Windows Installer Script (NSIS)
+; Digital Vigital Launcher - Premium Windows Installer Script (NSIS)
 ; High-performance, privacy-first desktop Minecraft launcher
 ; Supports installation on ANY drive (C:, D:, E:, etc.) with full branding & UX
 ; ==============================================================================
@@ -7,21 +7,32 @@
 Unicode True
 SetCompressor /SOLID lzma
 
-!define PRODUCT_NAME "Digital Vigital"
-!define PRODUCT_VERSION "1.1.0"
+!define PRODUCT_NAME "Digital Vigital Launcher"
+!define PRODUCT_SHORT_NAME "Digital Vigital"
+!define PRODUCT_VERSION "1.2.0"
 !define PRODUCT_PUBLISHER "Digital Vigital"
 !define PRODUCT_WEB_SITE "https://digitalvigital.fun"
 !define PRODUCT_EXE "dv-launcher.exe"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 
-OutFile "..\..\dist\DigitalVigital-Setup-1.1.0.exe"
-BrandingText "Digital Vigital — High-Performance Minecraft Launcher"
+OutFile "..\..\dist\DigitalVigital-Setup-1.2.0.exe"
+BrandingText "Digital Vigital Launcher - High-Performance Minecraft Client"
+
+; Version Information for Windows Explorer & Properties Dialog
+VIProductVersion "1.2.0.0"
+VIAddVersionKey "ProductName" "Digital Vigital Launcher Setup"
+VIAddVersionKey "Comments" "High-performance, privacy-first Minecraft launcher"
+VIAddVersionKey "CompanyName" "Digital Vigital"
+VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 Digital Vigital"
+VIAddVersionKey "FileDescription" "Digital Vigital Launcher Setup"
+VIAddVersionKey "FileVersion" "1.2.0.0"
+VIAddVersionKey "ProductVersion" "1.2.0"
 
 ; Use Highest available execution level (allows seamless install for standard & admin users)
 RequestExecutionLevel admin
 
 ; Default Installation Directory (allows user to install on ANY drive or custom folder)
-InstallDir "$PROGRAMFILES64\Digital Vigital"
+InstallDir "$PROGRAMFILES64\Digital Vigital Launcher"
 InstallDirRegKey HKLM "${PRODUCT_UNINST_KEY}" "InstallLocation"
 
 ; ==============================================================================
@@ -41,8 +52,8 @@ InstallDirRegKey HKLM "${PRODUCT_UNINST_KEY}" "InstallLocation"
 !define MUI_UNWELCOMEFINISHPAGE_BITMAP "wizard.bmp"
 
 ; --- Welcome Page ---
-!define MUI_WELCOMEPAGE_TITLE "Welcome to Digital Vigital Launcher"
-!define MUI_WELCOMEPAGE_TEXT "Digital Vigital is a high-performance, privacy-first Minecraft launcher powered by an independent Rust engine and native UI.$\r$\n$\r$\nKey Advantages:$\r$\n• Zero Lag: Lightweight native binary (No Electron / No Webview)$\r$\n• Auto GPU: Automatically routes to high-performance NVIDIA / AMD GPU$\r$\n• Mod Manager: 1-Click mod installs via Modrinth$\r$\n• Hardware Vault: Microsoft OAuth tokens secured in OS Keyring$\r$\n$\r$\nClick Next to continue."
+!define MUI_WELCOMEPAGE_TITLE "Welcome to Digital Vigital Launcher Setup"
+!define MUI_WELCOMEPAGE_TEXT "Digital Vigital is a high-performance, privacy-first Minecraft launcher powered by an independent Rust engine and native UI.$\r$\n$\r$\nKey Advantages:$\r$\n- Zero Lag: Lightweight native binary (No Electron / No Webview)$\r$\n- Smart GPU: Automatically routes to high-performance NVIDIA / AMD GPU$\r$\n- Mod Manager: 1-Click mod installs directly via Modrinth$\r$\n- Hardware Vault: Microsoft OAuth tokens secured in Windows Credential Manager$\r$\n$\r$\nClick Next to continue."
 !insertmacro MUI_PAGE_WELCOME
 
 ; --- License Page (Rendered via clean RTF) ---
@@ -50,17 +61,17 @@ InstallDirRegKey HKLM "${PRODUCT_UNINST_KEY}" "InstallLocation"
 !insertmacro MUI_PAGE_LICENSE "license.rtf"
 
 ; --- Directory Selection Page ---
-!define MUI_DIRECTORYPAGE_TEXT_TOP "Setup will install Digital Vigital in the following folder. To install on another drive (e.g. D:\, E:\) or custom path, click Browse and select the directory."
+!define MUI_DIRECTORYPAGE_TEXT_TOP "Setup will install Digital Vigital Launcher in the following folder. To install on another drive (e.g. D:\, E:\) or custom path, click Browse and select the directory."
 !insertmacro MUI_PAGE_DIRECTORY
 
 ; --- Installation Progress Page ---
 !insertmacro MUI_PAGE_INSTFILES
 
 ; --- Finish Page ---
-!define MUI_FINISHPAGE_TITLE "Digital Vigital is Ready!"
-!define MUI_FINISHPAGE_TEXT "Digital Vigital Launcher v${PRODUCT_VERSION} has been successfully installed on your system.$\r$\n$\r$\nYour Minecraft. Your Control."
+!define MUI_FINISHPAGE_TITLE "Digital Vigital Launcher is Ready!"
+!define MUI_FINISHPAGE_TEXT "Digital Vigital Launcher v${PRODUCT_VERSION} has been successfully installed on your computer.$\r$\n$\r$\nYour Minecraft. Your Control."
 !define MUI_FINISHPAGE_RUN "$INSTDIR\${PRODUCT_EXE}"
-!define MUI_FINISHPAGE_RUN_TEXT "Launch Digital Vigital now"
+!define MUI_FINISHPAGE_RUN_TEXT "Launch Digital Vigital Launcher now"
 !insertmacro MUI_PAGE_FINISH
 
 ; --- Uninstaller Pages ---
@@ -98,10 +109,10 @@ Section "MainSection" SEC01
     File "..\..\LICENSE"
 
     ; Create Shortcuts in Start Menu and Desktop
-    CreateDirectory "$SMPROGRAMS\Digital Vigital"
-    CreateShortcut "$SMPROGRAMS\Digital Vigital\Digital Vigital.lnk" "$INSTDIR\${PRODUCT_EXE}" "" "$INSTDIR\logo.ico" 0
-    CreateShortcut "$SMPROGRAMS\Digital Vigital\Uninstall.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\logo.ico" 0
-    CreateShortcut "$DESKTOP\Digital Vigital.lnk" "$INSTDIR\${PRODUCT_EXE}" "" "$INSTDIR\logo.ico" 0
+    CreateDirectory "$SMPROGRAMS\Digital Vigital Launcher"
+    CreateShortcut "$SMPROGRAMS\Digital Vigital Launcher\Digital Vigital Launcher.lnk" "$INSTDIR\${PRODUCT_EXE}" "" "$INSTDIR\logo.ico" 0
+    CreateShortcut "$SMPROGRAMS\Digital Vigital Launcher\Uninstall Digital Vigital.lnk" "$INSTDIR\Uninstall.exe" "" "$INSTDIR\logo.ico" 0
+    CreateShortcut "$DESKTOP\Digital Vigital Launcher.lnk" "$INSTDIR\${PRODUCT_EXE}" "" "$INSTDIR\logo.ico" 0
 
     ; Write Uninstaller
     WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -116,7 +127,7 @@ Section "MainSection" SEC01
     WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "HelpLink" "https://discord.gg/flex-dv"
     WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "Publisher" "${PRODUCT_PUBLISHER}"
     WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "InstallLocation" "$INSTDIR"
-    WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "Comments" "High-performance privacy-first Minecraft launcher"
+    WriteRegStr HKLM "${PRODUCT_UNINST_KEY}" "Comments" "Digital Vigital (DV) - Minecraft Launcher"
     WriteRegDWORD HKLM "${PRODUCT_UNINST_KEY}" "EstimatedSize" 28000
     WriteRegDWORD HKLM "${PRODUCT_UNINST_KEY}" "NoModify" 1
     WriteRegDWORD HKLM "${PRODUCT_UNINST_KEY}" "NoRepair" 1
@@ -135,9 +146,14 @@ Section "Uninstall"
     Delete "$INSTDIR\Uninstall.exe"
 
     ; Remove Shortcuts
+    Delete "$SMPROGRAMS\Digital Vigital Launcher\Digital Vigital Launcher.lnk"
+    Delete "$SMPROGRAMS\Digital Vigital Launcher\Uninstall Digital Vigital.lnk"
+    RMDir "$SMPROGRAMS\Digital Vigital Launcher"
+    ; Also cleanup legacy shortcuts if present
     Delete "$SMPROGRAMS\Digital Vigital\Digital Vigital.lnk"
     Delete "$SMPROGRAMS\Digital Vigital\Uninstall.lnk"
     RMDir "$SMPROGRAMS\Digital Vigital"
+    Delete "$DESKTOP\Digital Vigital Launcher.lnk"
     Delete "$DESKTOP\Digital Vigital.lnk"
 
     ; Remove Install directory if empty
@@ -145,4 +161,5 @@ Section "Uninstall"
 
     ; Clean up registry
     DeleteRegKey HKLM "${PRODUCT_UNINST_KEY}"
+    DeleteRegKey /ifempty HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Digital Vigital"
 SectionEnd

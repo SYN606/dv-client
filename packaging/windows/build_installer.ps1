@@ -10,16 +10,18 @@ Write-Host "=============================================" -ForegroundColor Cyan
 $ProjectRoot = Resolve-Path "$PSScriptRoot\..\.."
 Set-Location $ProjectRoot
 
-# 1. Compile release binary for Windows if needed
-if (-not (Test-Path "$ProjectRoot\target\release\dv-launcher.exe")) {
-    Write-Host "[1/3] Compiling optimized release binary..." -ForegroundColor Yellow
-    cargo build --release
+# 1. Compile release binary for Windows
+Write-Host "[1/3] Compiling optimized release binary..." -ForegroundColor Yellow
+cargo build --release
+if ($LASTEXITCODE -ne 0) {
+    throw "Cargo release build failed with exit code $LASTEXITCODE"
 }
 
 # 2. Check for NSIS compiler
 $MakensisPath = Get-Command "makensis.exe" -ErrorAction SilentlyContinue
 if (-not $MakensisPath) {
     $candidatePaths = @(
+        "$env:LOCALAPPDATA\Programs\NSIS\nsis-3.10\Bin\makensis.exe",
         "$env:LOCALAPPDATA\Programs\NSIS\nsis-3.10\makensis.exe",
         "C:\Program Files (x86)\NSIS\makensis.exe",
         "C:\Program Files\NSIS\makensis.exe"
@@ -37,11 +39,11 @@ New-Item -ItemType Directory -Force -Path "$ProjectRoot\dist" | Out-Null
 if ($MakensisPath) {
     Write-Host "[2/3] Compiling NSIS installer with multi-drive selector..." -ForegroundColor Green
     & $MakensisPath "$ProjectRoot\packaging\windows\DigitalVigital.nsi"
-    Write-Host "[3/3] Windows Installer successfully created at dist\DigitalVigital-Setup-1.1.0.exe!" -ForegroundColor Green
+    Write-Host "[3/3] Windows Installer successfully created at dist\DigitalVigital-Setup-1.2.0.exe!" -ForegroundColor Green
 
     Write-Host "[Bonus] Generating portable ZIP archive..." -ForegroundColor Cyan
-    Compress-Archive -Path "$ProjectRoot\target\release\dv-launcher.exe", "$ProjectRoot\assets\logo.png", "$ProjectRoot\assets\logo.ico", "$ProjectRoot\README.md" -DestinationPath "$ProjectRoot\dist\DigitalVigital-v1.1.0-windows-x64-portable.zip" -Force
-    Write-Host "Portable ZIP created at dist\DigitalVigital-v1.1.0-windows-x64-portable.zip!" -ForegroundColor Green
+    Compress-Archive -Path "$ProjectRoot\target\release\dv-launcher.exe", "$ProjectRoot\assets\logo.png", "$ProjectRoot\assets\logo.ico", "$ProjectRoot\README.md" -DestinationPath "$ProjectRoot\dist\DigitalVigital-v1.2.0-windows-x64-portable.zip" -Force
+    Write-Host "Portable ZIP created at dist\DigitalVigital-v1.2.0-windows-x64-portable.zip!" -ForegroundColor Green
     exit 0
 }
 
@@ -64,11 +66,11 @@ if (-not $InnoPath) {
 if ($InnoPath) {
     Write-Host "[2/3] Compiling Inno Setup installer with multi-drive selector..." -ForegroundColor Green
     & $InnoPath "$ProjectRoot\packaging\windows\DigitalVigital.iss"
-    Write-Host "[3/3] Windows Installer successfully created at dist\DigitalVigital-Setup-1.1.0.exe!" -ForegroundColor Green
+    Write-Host "[3/3] Windows Installer successfully created at dist\DigitalVigital-Setup-1.2.0.exe!" -ForegroundColor Green
 
     Write-Host "[Bonus] Generating portable ZIP archive..." -ForegroundColor Cyan
-    Compress-Archive -Path "$ProjectRoot\target\release\dv-launcher.exe", "$ProjectRoot\assets\logo.png", "$ProjectRoot\assets\logo.ico", "$ProjectRoot\README.md" -DestinationPath "$ProjectRoot\dist\DigitalVigital-v1.1.0-windows-x64-portable.zip" -Force
-    Write-Host "Portable ZIP created at dist\DigitalVigital-v1.1.0-windows-x64-portable.zip!" -ForegroundColor Green
+    Compress-Archive -Path "$ProjectRoot\target\release\dv-launcher.exe", "$ProjectRoot\assets\logo.png", "$ProjectRoot\assets\logo.ico", "$ProjectRoot\README.md" -DestinationPath "$ProjectRoot\dist\DigitalVigital-v1.2.0-windows-x64-portable.zip" -Force
+    Write-Host "Portable ZIP created at dist\DigitalVigital-v1.2.0-windows-x64-portable.zip!" -ForegroundColor Green
     exit 0
 }
 

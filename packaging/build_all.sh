@@ -10,6 +10,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 
+VERSION=$(grep -m1 '^version =' Cargo.toml | cut -d '"' -f2 || echo "1.1.0")
+
 echo "=== [1/4] Compiling optimized release binary ==="
 cargo build --release
 
@@ -41,9 +43,9 @@ cd "$DEB_STAGING"
 echo "2.0" > debian-binary
 tar --numeric-owner --owner=0 --group=0 -czf control.tar.gz -C DEBIAN control
 tar --numeric-owner --owner=0 --group=0 -czf data.tar.gz usr
-ar rcs "$DIST_DIR/dv-launcher_1.0.0_amd64.deb" debian-binary control.tar.gz data.tar.gz
+ar rcs "$DIST_DIR/dv-launcher_${VERSION}_amd64.deb" debian-binary control.tar.gz data.tar.gz
 cd "$ROOT_DIR"
-echo "-> Created $DIST_DIR/dv-launcher_1.0.0_amd64.deb"
+echo "-> Created $DIST_DIR/dv-launcher_${VERSION}_amd64.deb"
 
 echo "=== [3/4] Building Red Hat / Fedora package (.rpm) ==="
 if command -v rpmbuild >/dev/null 2>&1; then
@@ -56,8 +58,8 @@ if command -v rpmbuild >/dev/null 2>&1; then
     cp "$ROOT_DIR/packaging/rpm/dv-launcher.spec" "$RPM_ROOT/SPECS/dv-launcher.spec"
     rpmbuild --define "_topdir $RPM_ROOT" -bb "$RPM_ROOT/SPECS/dv-launcher.spec"
     cp "$RPM_ROOT"/RPMS/x86_64/*.rpm "$DIST_DIR/"
-    cp "$DIST_DIR"/dv-launcher-1.0.0-1.*.rpm "$DIST_DIR/dv-launcher-1.0.0-1.x86_64.rpm" 2>/dev/null || true
-    echo "-> Created $DIST_DIR/dv-launcher-1.0.0-1.x86_64.rpm"
+    cp "$DIST_DIR"/dv-launcher-*-1.*.rpm "$DIST_DIR/dv-launcher-${VERSION}-1.x86_64.rpm" 2>/dev/null || true
+    echo "-> Created $DIST_DIR/dv-launcher-${VERSION}-1.x86_64.rpm"
 else
     echo "Warning: rpmbuild not found, skipping RPM generation."
 fi
@@ -87,8 +89,8 @@ if [ ! -f "$ROOT_DIR/packaging/appimagetool" ]; then
     chmod +x "$ROOT_DIR/packaging/appimagetool"
 fi
 
-ARCH=x86_64 "$ROOT_DIR/packaging/appimagetool" --appimage-extract-and-run "$APP_DIR" "$DIST_DIR/DigitalVigital-1.0.0-x86_64.AppImage"
-echo "-> Created $DIST_DIR/DigitalVigital-1.0.0-x86_64.AppImage"
+ARCH=x86_64 "$ROOT_DIR/packaging/appimagetool" --appimage-extract-and-run "$APP_DIR" "$DIST_DIR/DigitalVigital-${VERSION}-x86_64.AppImage"
+echo "-> Created $DIST_DIR/DigitalVigital-${VERSION}-x86_64.AppImage"
 
 echo "=== All Linux distribution packages generated successfully in dist/ ==="
 ls -lh "$DIST_DIR"/*.AppImage "$DIST_DIR"/*.deb "$DIST_DIR"/*.rpm

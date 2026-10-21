@@ -192,14 +192,14 @@ component NavTab inherits Rectangle {
 }
 
 export component MainWindow inherits Window {
-    title: "Digital Vigital (DV) — Minecraft Launcher";
+    title: "Digital Vigital Launcher - Minecraft Client";
     icon: @image-url("../assets/logo.png");
     preferred-width: 1240px;
     preferred-height: 820px;
     min-width: 1024px;
     min-height: 680px;
     background: #0B0C10;
-    default-font-family: "Inter, 'Segoe UI', system-ui, -apple-system, sans-serif";
+    default-font-family: "'Segoe UI', 'Segoe UI Variable Text', -apple-system, BlinkMacSystemFont, Roboto, sans-serif";
 
     // Application State Properties
     // 0: Play, 1: Profiles, 2: Mods, 3: Downloads, 4: Accounts, 5: Settings, 6: Logs
@@ -210,6 +210,11 @@ export component MainWindow inherits Window {
     in-out property <string> active_username: "";
     in-out property <string> active_account_type: "Not Configured";
     in-out property <string> java_runtime_display: "OpenJDK 21 (Auto-Detected)";
+    in-out property <bool> has_java: true;
+    in-out property <bool> has_java_21: false;
+    in-out property <bool> is_installing_java: false;
+    in-out property <float> java_install_progress: 0.0;
+    in-out property <string> java_install_status: "";
     in-out property <string> game_status: "Ready to Play";
     in-out property <bool> is_running: false;
     in-out property <bool> is_downloading: false;
@@ -321,9 +326,12 @@ export component MainWindow inherits Window {
     callback complete_ms_auth_clicked();
     callback logout_account_clicked(string);
     callback clear_console_clicked();
+    callback open_in_notepad_clicked();
+    callback open_crash_report_clicked();
     callback save_settings_clicked();
     callback reset_settings_clicked();
     callback browse_java_clicked();
+    callback install_java_clicked();
     callback select_java_runtime(string);
     callback browse_root_dir_clicked();
     callback browse_profiles_dir_clicked();
@@ -756,14 +764,79 @@ export component MainWindow inherits Window {
                                 Rectangle {
                                     height: 30px;
                                     border-radius: 6px;
-                                    background: #ffffff0d;
+                                    background: !root.has_java ? #FF334422 : #ffffff0d;
                                     border-width: 1px;
-                                    border-color: #ffffff1f;
+                                    border-color: !root.has_java ? #FF334488 : #ffffff1f;
                                     HorizontalLayout {
                                         padding-left: 12px;
                                         padding-right: 12px;
-                                        Text { text: root.java_runtime_display; font-size: 13px; font-weight: 600; color: #A0A5B5; vertical-alignment: center; }
+                                        Text {
+                                            text: root.has_java ? root.java_runtime_display : "⚠️ Java 21 Missing";
+                                            font-size: 13px;
+                                            font-weight: 600;
+                                            color: !root.has_java ? #FF6B7A : #A0A5B5;
+                                            vertical-alignment: center;
+                                        }
                                     }
+                                }
+                            }
+                        }
+                    }
+
+                    // Java Missing Warning / Installation Card
+                    if !root.has_java || root.is_installing_java : GlassCard {
+                        background: #FF33441a;
+                        border-color: #FF334466;
+                        VerticalLayout {
+                            padding: 16px;
+                            spacing: 10px;
+
+                            HorizontalLayout {
+                                alignment: space-between;
+                                VerticalLayout {
+                                    spacing: 4px;
+                                    horizontal-stretch: 1;
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        Text { text: "⚠️"; font-size: 15px; vertical-alignment: center; }
+                                        Text {
+                                            text: root.is_installing_java ? "INSTALLING JAVA 21 FOR WINDOWS" : "JAVA 21 REQUIRED TO PLAY";
+                                            font-size: 13px;
+                                            font-weight: 800;
+                                            color: #FF3344;
+                                            letter-spacing: 0.5px;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+                                    Text {
+                                        text: root.is_installing_java ? root.java_install_status : "No Java installation was detected on your Windows system. Minecraft requires Java 21 to run.";
+                                        font-size: 12px;
+                                        color: #E2E8F0;
+                                    }
+                                }
+
+                                ActionButton {
+                                    width: 170px;
+                                    height: 38px;
+                                    text: root.is_installing_java ? "Installing..." : "Install Java 21";
+                                    is_primary: true;
+                                    enabled: !root.is_installing_java;
+                                    clicked => { root.install_java_clicked(); }
+                                }
+                            }
+
+                            if root.is_installing_java : Rectangle {
+                                height: 6px;
+                                border-radius: 3px;
+                                background: #ffffff14;
+                                clip: true;
+
+                                Rectangle {
+                                    x: 0px;
+                                    width: Math.min(parent.width, Math.max(0px, parent.width * root.java_install_progress));
+                                    height: parent.height;
+                                    background: #FF3344;
+                                    border-radius: 3px;
                                 }
                             }
                         }
@@ -991,8 +1064,8 @@ export component MainWindow inherits Window {
                                             padding-right: 12px;
                                             alignment: center;
                                             spacing: 2px;
-                                            Text { text: "GPU MODE"; font-size: 10px; font-weight: 800; color: #8E92A4; letter-spacing: 0.8px; }
-                                            Text { text: root.selected_gpu_display; font-size: 12px; font-weight: 700; color: #FFFFFF; overflow: elide; }
+                                            Text { text: "GPU MODE"; font-size: 11px; font-weight: 800; color: #94A3B8; letter-spacing: 0.8px; }
+                                            Text { text: root.selected_gpu_display; font-size: 13px; font-weight: 700; color: #FFFFFF; overflow: elide; }
                                         }
                                     }
 
@@ -1009,8 +1082,8 @@ export component MainWindow inherits Window {
                                             padding-right: 12px;
                                             alignment: center;
                                             spacing: 2px;
-                                            Text { text: "ALLOCATED RAM"; font-size: 10px; font-weight: 800; color: #8E92A4; letter-spacing: 0.8px; }
-                                            Text { text: (root.max_memory_mb / 1024) + " GB"; font-size: 12px; font-weight: 700; color: #FFFFFF; overflow: elide; }
+                                            Text { text: "ALLOCATED RAM"; font-size: 11px; font-weight: 800; color: #94A3B8; letter-spacing: 0.8px; }
+                                            Text { text: (root.max_memory_mb / 1024) + " GB"; font-size: 13px; font-weight: 700; color: #FFFFFF; overflow: elide; }
                                         }
                                     }
                                 }
@@ -1031,8 +1104,8 @@ export component MainWindow inherits Window {
                                             padding-right: 12px;
                                             alignment: center;
                                             spacing: 2px;
-                                            Text { text: "BACKGROUND MODE"; font-size: 10px; font-weight: 800; color: #8E92A4; letter-spacing: 0.8px; }
-                                            Text { text: root.on_launch_action_display; font-size: 12px; font-weight: 700; color: #FFFFFF; overflow: elide; }
+                                            Text { text: "BACKGROUND MODE"; font-size: 11px; font-weight: 800; color: #94A3B8; letter-spacing: 0.8px; }
+                                            Text { text: root.on_launch_action_display; font-size: 13px; font-weight: 700; color: #FFFFFF; overflow: elide; }
                                         }
                                     }
 
@@ -1049,8 +1122,8 @@ export component MainWindow inherits Window {
                                             padding-right: 12px;
                                             alignment: center;
                                             spacing: 2px;
-                                            Text { text: "DISCORD RPC"; font-size: 10px; font-weight: 800; color: #8E92A4; letter-spacing: 0.8px; }
-                                            Text { text: root.enable_discord_rpc ? "Enabled" : "Disabled"; font-size: 12px; font-weight: 700; color: #FFFFFF; overflow: elide; }
+                                            Text { text: "DISCORD RPC"; font-size: 11px; font-weight: 800; color: #94A3B8; letter-spacing: 0.8px; }
+                                            Text { text: root.enable_discord_rpc ? "Enabled" : "Disabled"; font-size: 13px; font-weight: 700; color: #FFFFFF; overflow: elide; }
                                         }
                                     }
                                 }
@@ -1109,7 +1182,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 2;
                                 spacing: 4px;
-                                Text { text: "Profile Name"; font-size: 11px; color: #A0A5B5; }
+                                Text { text: "Profile Name"; font-size: 12px; font-weight: 600; color: #CBD5E1; }
                                 LineEdit {
                                     text: root.new_instance_name;
                                     edited(val) => { root.new_instance_name = val; }
@@ -1119,7 +1192,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Minecraft Version"; font-size: 11px; color: #A0A5B5; }
+                                Text { text: "Minecraft Version"; font-size: 12px; font-weight: 600; color: #CBD5E1; }
                                 ComboBox {
                                     model: root.version_list;
                                     current_value: root.new_instance_version;
@@ -1133,7 +1206,7 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 horizontal-stretch: 1;
                                 spacing: 4px;
-                                Text { text: "Mod Loader"; font-size: 11px; color: #A0A5B5; }
+                                Text { text: "Mod Loader"; font-size: 12px; font-weight: 600; color: #CBD5E1; }
                                 ComboBox {
                                     model: root.loader_list;
                                     current_value: root.new_instance_loader;
@@ -1931,13 +2004,13 @@ export component MainWindow inherits Window {
                                             border-radius: 4px;
                                             border-width: 1px;
                                             border-color: #22c55e66;
-                                            height: 18px;
+                                            height: 22px;
                                             HorizontalLayout {
-                                                padding-left: 6px;
-                                                padding-right: 6px;
+                                                padding-left: 8px;
+                                                padding-right: 8px;
                                                 Text {
                                                     text: "SYNCS UNIVERSALLY";
-                                                    font-size: 9px;
+                                                    font-size: 11px;
                                                     font-weight: 800;
                                                     color: #22c55e;
                                                     vertical-alignment: center;
@@ -2474,12 +2547,79 @@ export component MainWindow inherits Window {
                                         }
                                     }
 
-                                    ActionButton {
-                                        width: 130px;
-                                        height: 34px;
-                                        text: "Browse Java...";
-                                        is_primary: false;
-                                        clicked => { root.browse_java_clicked(); }
+                                    HorizontalLayout {
+                                        spacing: 10px;
+
+                                        ActionButton {
+                                            width: 160px;
+                                            height: 34px;
+                                            text: root.is_installing_java ? "Installing..." : (!root.has_java ? "Install Java 21" : "Reinstall Java 21");
+                                            is_primary: !root.has_java || !root.has_java_21;
+                                            enabled: !root.is_installing_java;
+                                            clicked => { root.install_java_clicked(); }
+                                        }
+
+                                        ActionButton {
+                                            width: 130px;
+                                            height: 34px;
+                                            text: "Browse Java...";
+                                            is_primary: false;
+                                            clicked => { root.browse_java_clicked(); }
+                                        }
+                                    }
+                                }
+
+                                if root.is_installing_java : VerticalLayout {
+                                    spacing: 6px;
+                                    HorizontalLayout {
+                                        alignment: space-between;
+                                        Text {
+                                            text: root.java_install_status;
+                                            font-size: 12px;
+                                            font-weight: 600;
+                                            color: #FF3344;
+                                        }
+                                        Text {
+                                            text: Math.round(root.java_install_progress * 100) + "%";
+                                            font-size: 12px;
+                                            font-weight: 700;
+                                            color: #FFFFFF;
+                                        }
+                                    }
+                                    Rectangle {
+                                        height: 6px;
+                                        border-radius: 3px;
+                                        background: #ffffff14;
+                                        clip: true;
+
+                                        Rectangle {
+                                            x: 0px;
+                                            width: Math.min(parent.width, Math.max(0px, parent.width * root.java_install_progress));
+                                            height: parent.height;
+                                            background: #FF3344;
+                                            border-radius: 3px;
+                                        }
+                                    }
+                                }
+
+                                if root.java_list.length == 0 : Rectangle {
+                                    height: 52px;
+                                    border-radius: 6px;
+                                    background: #FF334412;
+                                    border-width: 1px;
+                                    border-color: #FF334433;
+                                    HorizontalLayout {
+                                        padding-left: 14px;
+                                        padding-right: 14px;
+                                        spacing: 8px;
+                                        alignment: start;
+                                        Text { text: "⚠️"; font-size: 14px; vertical-alignment: center; }
+                                        Text {
+                                            text: "No Java runtime found. Click 'Install Java 21' to automatically download and configure OpenJDK 21 for Windows.";
+                                            font-size: 12px;
+                                            color: #E2E8F0;
+                                            vertical-alignment: center;
+                                        }
                                     }
                                 }
 
@@ -2580,92 +2720,163 @@ export component MainWindow inherits Window {
                                     letter-spacing: 1px;
                                 }
 
-                                Text {
-                                    text: "Selected GPU Preference: " + root.selected_gpu_display;
-                                    font-size: 13px;
-                                    font-weight: 700;
-                                    color: #FFFFFF;
+                                Rectangle {
+                                    border-radius: 6px;
+                                    background: #ffffff0a;
+                                    border-width: 1px;
+                                    border-color: #ffffff14;
+                                    HorizontalLayout {
+                                        padding-left: 14px;
+                                        padding-right: 14px;
+                                        padding-top: 10px;
+                                        padding-bottom: 10px;
+                                        spacing: 8px;
+                                        alignment: start;
+
+                                        Text {
+                                            text: "Selected GPU Preference:";
+                                            font-size: 13px;
+                                            font-weight: 600;
+                                            color: #A0A5B5;
+                                            vertical-alignment: center;
+                                        }
+
+                                        Text {
+                                            text: root.selected_gpu_display;
+                                            font-size: 13px;
+                                            font-weight: 700;
+                                            color: #FF3344;
+                                            vertical-alignment: center;
+                                            wrap: word-wrap;
+                                            horizontal-stretch: 1;
+                                        }
+                                    }
                                 }
 
                                 Text {
-                                    text: "Choose which GPU Minecraft should prioritize. For laptops with hybrid graphics (NVIDIA Optimus / AMD Prime), selecting your Discrete GPU ensures maximum FPS.";
+                                    text: "Choose which GPU Minecraft should prioritize. For laptops with hybrid graphics (NVIDIA Optimus / AMD Radeon), selecting your Discrete GPU ensures maximum FPS.";
                                     font-size: 12px;
                                     color: #A0A5B5;
+                                    wrap: word-wrap;
                                 }
 
                                 VerticalLayout {
                                     spacing: 8px;
 
                                     for gpu in root.gpu_list : Rectangle {
-                                        height: 44px;
-                                        border-radius: 6px;
-                                        background: gpu.id == root.selected_gpu_id ? #FF33441f : #ffffff08;
-                                        border-width: 1px;
-                                        border-color: gpu.id == root.selected_gpu_id ? #FF334488 : #ffffff14;
+                                        min-height: 62px;
+                                        border-radius: 8px;
+                                        background: gpu.id == root.selected_gpu_id ? #FF33441a : (gpu_touch.has_hover ? #ffffff12 : #ffffff08);
+                                        border-width: gpu.id == root.selected_gpu_id ? 1.5px : 1px;
+                                        border-color: gpu.id == root.selected_gpu_id ? #FF3344aa : (gpu_touch.has_hover ? #ffffff2c : #ffffff14);
+                                        animate background { duration: 120ms; }
+                                        animate border-color { duration: 120ms; }
 
-                                        TouchArea {
+                                        gpu_touch := TouchArea {
                                             mouse-cursor: pointer;
                                             clicked => { root.select_gpu_preference(gpu.id, gpu.name); }
                                         }
 
                                         HorizontalLayout {
-                                            padding-left: 14px;
-                                            padding-right: 14px;
+                                            padding-left: 16px;
+                                            padding-right: 16px;
+                                            padding-top: 12px;
+                                            padding-bottom: 12px;
+                                            spacing: 14px;
                                             alignment: space-between;
 
                                             HorizontalLayout {
-                                                spacing: 12px;
+                                                spacing: 14px;
                                                 alignment: center;
                                                 horizontal-stretch: 1;
+
+                                                // Category Tag
                                                 Rectangle {
                                                     border-radius: 4px;
-                                                    background: gpu.is_discrete ? #FF334426 : #ffffff14;
+                                                    background: gpu.id == "auto" ? #38bdf822 : (gpu.is_discrete ? #FF334426 : #ffffff14);
                                                     border-width: 1px;
-                                                    border-color: gpu.is_discrete ? #FF334466 : #ffffff20;
+                                                    border-color: gpu.id == "auto" ? #38bdf866 : (gpu.is_discrete ? #FF334466 : #ffffff20);
                                                     HorizontalLayout {
                                                         padding-left: 8px;
                                                         padding-right: 8px;
                                                         padding-top: 3px;
                                                         padding-bottom: 3px;
                                                         Text {
-                                                            text: gpu.is_discrete ? "Discrete" : "Integrated";
-                                                            font-size: 11px;
-                                                            font-weight: 700;
-                                                            color: gpu.is_discrete ? #FF3344 : #A0A5B5;
+                                                            text: gpu.id == "auto" ? "AUTO" : (gpu.is_discrete ? "DISCRETE" : "INTEGRATED");
+                                                            font-size: 10px;
+                                                            font-weight: 800;
+                                                            color: gpu.id == "auto" ? #38bdf8 : (gpu.is_discrete ? #FF4D5E : #94A3B8);
                                                             vertical-alignment: center;
                                                         }
                                                     }
                                                 }
-                                                Text {
-                                                    text: gpu.name;
-                                                    font-size: 13px;
-                                                    font-weight: 600;
-                                                    color: #FFFFFF;
-                                                    vertical-alignment: center;
-                                                    overflow: elide;
+
+                                                VerticalLayout {
+                                                    alignment: center;
+                                                    spacing: 3px;
+                                                    horizontal-stretch: 1;
+
+                                                    Text {
+                                                        text: gpu.name;
+                                                        font-size: 13px;
+                                                        font-weight: 700;
+                                                        color: #FFFFFF;
+                                                        vertical-alignment: center;
+                                                        overflow: elide;
+                                                    }
+
+                                                    Text {
+                                                        text: gpu.id == "auto" ? "Default OS graphics scheduler routing" :
+                                                              (gpu.is_discrete ? "DirectX 12 / Vulkan dedicated high-performance pipeline" :
+                                                              "Energy-efficient processor graphics");
+                                                        font-size: 11px;
+                                                        color: #6F768A;
+                                                        vertical-alignment: center;
+                                                        overflow: elide;
+                                                    }
                                                 }
                                             }
 
+                                            // GPU Selection Action Button
                                             VerticalLayout {
                                                 alignment: center;
 
                                                 if gpu.id == root.selected_gpu_id : Rectangle {
-                                                    height: 22px;
-                                                    border-radius: 4px;
-                                                    background: #FF334426;
+                                                    width: 110px;
+                                                    height: 32px;
+                                                    border-radius: 6px;
+                                                    background: #FF3344;
                                                     border-width: 1px;
-                                                    border-color: #FF334488;
+                                                    border-color: #FF5566;
                                                     HorizontalLayout {
-                                                        padding-left: 8px;
-                                                        padding-right: 8px;
                                                         alignment: center;
                                                         Text {
                                                             text: "ACTIVE";
-                                                            font-size: 10px;
+                                                            font-size: 11px;
                                                             font-weight: 800;
-                                                            color: #FF4D5E;
+                                                            color: #FFFFFF;
                                                             vertical-alignment: center;
-                                                            horizontal-alignment: center;
+                                                        }
+                                                    }
+                                                }
+
+                                                if gpu.id != root.selected_gpu_id : Rectangle {
+                                                    width: 110px;
+                                                    height: 32px;
+                                                    border-radius: 6px;
+                                                    background: gpu_touch.pressed ? #FF334433 : (gpu_touch.has_hover ? #ffffff18 : #ffffff0a);
+                                                    border-width: 1px;
+                                                    border-color: gpu_touch.has_hover ? #FF334488 : #ffffff1c;
+                                                    animate background { duration: 100ms; }
+                                                    animate border-color { duration: 100ms; }
+                                                    HorizontalLayout {
+                                                        alignment: center;
+                                                        Text {
+                                                            text: "Select GPU";
+                                                            font-size: 11px;
+                                                            font-weight: 700;
+                                                            color: gpu_touch.has_hover ? #FFFFFF : #A0A5B5;
+                                                            vertical-alignment: center;
                                                         }
                                                     }
                                                 }
@@ -2683,7 +2894,7 @@ export component MainWindow inherits Window {
                                 spacing: 10px;
 
                                 Text {
-                                    text: "HYBRID GRAPHICS & VULKAN / OPENGL PERFORMANCE";
+                                    text: "HYBRID GRAPHICS & HARDWARE ACCELERATION GUIDE";
                                     font-size: 11px;
                                     font-weight: 800;
                                     color: #FF3344;
@@ -2691,21 +2902,24 @@ export component MainWindow inherits Window {
                                 }
 
                                 Text {
-                                    text: "Discrete GPU mode automatically applies Linux PRIME offload variables (__NV_PRIME_RENDER_OFFLOAD=1, DRI_PRIME=1) and Windows high-performance GPU registry hints.";
+                                    text: "Discrete GPU mode configures Windows DirectX UserGpuPreferences registry hints and Linux PRIME offload variables so Minecraft runs on your dedicated GPU.";
                                     font-size: 12px;
                                     color: #A0A5B5;
+                                    wrap: word-wrap;
                                 }
 
                                 Text {
                                     text: "Enables zero-copy surface blitting and native high-refresh rate displays with FreeSync / G-Sync.";
                                     font-size: 12px;
                                     color: #A0A5B5;
+                                    wrap: word-wrap;
                                 }
 
                                 Text {
                                     text: "Hardware rasterization and sodium/iris shader pipelines run at full throughput with dedicated VRAM.";
                                     font-size: 12px;
                                     color: #A0A5B5;
+                                    wrap: word-wrap;
                                 }
                             }
                         }
@@ -2763,9 +2977,9 @@ export component MainWindow inherits Window {
                                 }
 
                                 Text {
-                                    text: root.on_launch_action == "hide" ? "✓ Launcher will be hidden while playing and automatically restored when the game exits." :
-                                          (root.on_launch_action == "close" ? "✓ Launcher window will be hidden to release memory and automatically restored when the game exits." :
-                                          "✓ Launcher window will stay visible in background.");
+                                    text: root.on_launch_action == "hide" ? "Launcher will be hidden while playing and automatically restored when the game exits." :
+                                          (root.on_launch_action == "close" ? "Launcher window will be hidden to release memory and automatically restored when the game exits." :
+                                          "Launcher window will stay visible in background.");
                                     font-size: 12px;
                                     color: #10B981;
                                     font-weight: 600;
@@ -3022,46 +3236,66 @@ export component MainWindow inherits Window {
             // ------------------------------------------
             if root.active_tab == 6 : VerticalLayout {
                 padding: 24px;
-                spacing: 20px;
+                spacing: 16px;
 
                 HorizontalLayout {
                     alignment: space-between;
                     VerticalLayout {
                         spacing: 4px;
                         Text {
-                            text: "Game Console / Logs";
+                            text: "Game Console & Crash Reports";
                             font-size: 26px;
                             font-weight: 900;
                             color: #FFFFFF;
                         }
                         Text {
-                            text: "Real-time game runtime output and debug traces";
+                            text: "Real-time game runtime output, stack traces, and crash diagnostic logs";
                             font-size: 13px;
                             color: #A0A5B5;
                         }
                     }
 
-                    ActionButton {
-                        width: 110px;
-                        text: "Clear Logs";
-                        is_primary: false;
-                        clicked => { root.clear_console_clicked(); }
+                    HorizontalLayout {
+                        spacing: 10px;
+                        alignment: center;
+
+                        ActionButton {
+                            width: 140px;
+                            text: "Open in Notepad";
+                            is_primary: true;
+                            clicked => { root.open_in_notepad_clicked(); }
+                        }
+
+                        ActionButton {
+                            width: 155px;
+                            text: "Open Crash Report";
+                            is_primary: false;
+                            clicked => { root.open_crash_report_clicked(); }
+                        }
+
+                        ActionButton {
+                            width: 95px;
+                            text: "Clear Logs";
+                            is_primary: false;
+                            clicked => { root.clear_console_clicked(); }
+                        }
                     }
                 }
 
                 GlassCard {
                     vertical-stretch: 1;
-                    background: #08090D;
-                    border-color: #ffffff14;
+                    background: #06070A;
+                    border-color: #ffffff18;
 
                     ScrollView {
                         VerticalLayout {
-                            padding: 16px;
+                            padding: 20px;
                             Text {
                                 text: root.console_output;
-                                font-family: "JetBrains Mono, 'Fira Code', monospace";
-                                font-size: 12px;
-                                color: #D1D5DB;
+                                font-family: "'Cascadia Code', 'Cascadia Mono', Consolas, 'Segoe UI Mono', monospace";
+                                font-size: 14px;
+                                font-weight: 500;
+                                color: #F1F5F9;
                                 wrap: word-wrap;
                             }
                         }

@@ -36,7 +36,9 @@ fn save_validated_icon_png(buf: &[u8], cache_path: &Path) -> bool {
     }
     // Attempt decoding and converting other image formats (e.g. WebP, JPEG) to PNG
     if let Ok(img) = image::load_from_memory(buf) {
-        return img.save_with_format(cache_path, image::ImageFormat::Png).is_ok();
+        return img
+            .save_with_format(cache_path, image::ImageFormat::Png)
+            .is_ok();
     }
     false
 }
@@ -46,7 +48,11 @@ fn extract_icon_from_archive<R: std::io::Read + std::io::Seek>(
     icon_candidate: Option<&str>,
     cache_path: &Path,
 ) -> Option<PathBuf> {
-    if cache_path.exists() && fs::metadata(cache_path).map(|m| m.len() > 0).unwrap_or(false) {
+    if cache_path.exists()
+        && fs::metadata(cache_path)
+            .map(|m| m.len() > 0)
+            .unwrap_or(false)
+    {
         return Some(cache_path.to_path_buf());
     }
 
@@ -90,7 +96,9 @@ fn extract_icon_from_archive<R: std::io::Read + std::io::Seek>(
     for i in 0..archive_len {
         if let Ok(mut f) = archive.by_index(i) {
             let name = f.name();
-            if (name.ends_with("/icon.png") || name.ends_with("/logo.png")) && name.starts_with("assets/") {
+            if (name.ends_with("/icon.png") || name.ends_with("/logo.png"))
+                && name.starts_with("assets/")
+            {
                 let mut buf = Vec::new();
                 if std::io::Read::read_to_end(&mut f, &mut buf).is_ok()
                     && !buf.is_empty()
@@ -106,12 +114,20 @@ fn extract_icon_from_archive<R: std::io::Read + std::io::Seek>(
 }
 
 /// Inspect a .jar file to extract rich metadata and icon from fabric.mod.json, mcmod.info, or META-INF/mods.toml.
-pub fn inspect_mod_jar<P: AsRef<Path>>(path: P) -> Option<(String, String, String, String, Option<PathBuf>)> {
+pub fn inspect_mod_jar<P: AsRef<Path>>(
+    path: P,
+) -> Option<(String, String, String, String, Option<PathBuf>)> {
     let file = fs::File::open(path.as_ref()).ok()?;
     let mut archive = zip::ZipArchive::new(file).ok()?;
 
-    let file_stem = path.as_ref().file_stem().and_then(|s| s.to_str()).unwrap_or("mod");
-    let clean_stem = file_stem.trim_end_matches(".jar").trim_end_matches(".disabled");
+    let file_stem = path
+        .as_ref()
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("mod");
+    let clean_stem = file_stem
+        .trim_end_matches(".jar")
+        .trim_end_matches(".disabled");
     let cache_path = get_mod_icon_cache_dir().join(format!("{}.png", clean_stem));
 
     // 1. Try fabric.mod.json
@@ -129,13 +145,28 @@ pub fn inspect_mod_jar<P: AsRef<Path>>(path: P) -> Option<(String, String, Strin
     };
 
     if let Some(val) = fabric_meta {
-        let name = val.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
-        let version = val.get("version").and_then(|v| v.as_str()).unwrap_or("").to_string();
-        let desc = val.get("description").and_then(|d| d.as_str()).unwrap_or("").to_string();
+        let name = val
+            .get("name")
+            .and_then(|n| n.as_str())
+            .unwrap_or("")
+            .to_string();
+        let version = val
+            .get("version")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let desc = val
+            .get("description")
+            .and_then(|d| d.as_str())
+            .unwrap_or("")
+            .to_string();
         let author = if let Some(authors) = val.get("authors").and_then(|a| a.as_array()) {
             authors
                 .iter()
-                .filter_map(|a| a.as_str().or_else(|| a.get("name").and_then(|n| n.as_str())))
+                .filter_map(|a| {
+                    a.as_str()
+                        .or_else(|| a.get("name").and_then(|n| n.as_str()))
+                })
                 .collect::<Vec<_>>()
                 .join(", ")
         } else {
@@ -146,13 +177,17 @@ pub fn inspect_mod_jar<P: AsRef<Path>>(path: P) -> Option<(String, String, Strin
             if let Some(s) = i.as_str() {
                 Some(s.to_string())
             } else if let Some(obj) = i.as_object() {
-                obj.values().filter_map(|v| v.as_str()).next().map(|s| s.to_string())
+                obj.values()
+                    .filter_map(|v| v.as_str())
+                    .next()
+                    .map(|s| s.to_string())
             } else {
                 None
             }
         });
 
-        let icon_path = extract_icon_from_archive(&mut archive, icon_candidate.as_deref(), &cache_path);
+        let icon_path =
+            extract_icon_from_archive(&mut archive, icon_candidate.as_deref(), &cache_path);
 
         if !name.is_empty() {
             return Some((name, version, desc, author, icon_path));
@@ -176,12 +211,30 @@ pub fn inspect_mod_jar<P: AsRef<Path>>(path: P) -> Option<(String, String, Strin
     if let Some(val) = mcmod_meta {
         let mod_obj = val.as_array().and_then(|arr| arr.first()).or(Some(&val));
         if let Some(m) = mod_obj {
-            let name = m.get("name").and_then(|n| n.as_str()).unwrap_or("").to_string();
-            let version = m.get("version").and_then(|v| v.as_str()).unwrap_or("").to_string();
-            let desc = m.get("description").and_then(|d| d.as_str()).unwrap_or("").to_string();
-            let author = m.get("authorList")
+            let name = m
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("")
+                .to_string();
+            let version = m
+                .get("version")
+                .and_then(|v| v.as_str())
+                .unwrap_or("")
+                .to_string();
+            let desc = m
+                .get("description")
+                .and_then(|d| d.as_str())
+                .unwrap_or("")
+                .to_string();
+            let author = m
+                .get("authorList")
                 .and_then(|a| a.as_array())
-                .map(|arr| arr.iter().filter_map(|x| x.as_str()).collect::<Vec<_>>().join(", "))
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|x| x.as_str())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
                 .unwrap_or_default();
             let icon_candidate = m.get("logoFile").and_then(|l| l.as_str());
             let icon_path = extract_icon_from_archive(&mut archive, icon_candidate, &cache_path);
@@ -195,7 +248,13 @@ pub fn inspect_mod_jar<P: AsRef<Path>>(path: P) -> Option<(String, String, Strin
     // 3. Fallback generic icon extraction
     let icon_path = extract_icon_from_archive(&mut archive, None, &cache_path);
     if icon_path.is_some() {
-        return Some((String::new(), String::new(), String::new(), String::new(), icon_path));
+        return Some((
+            String::new(),
+            String::new(),
+            String::new(),
+            String::new(),
+            icon_path,
+        ));
     }
 
     None
@@ -224,7 +283,8 @@ pub fn scan_mods<P: AsRef<Path>>(mods_dir: P) -> Vec<ModEntry> {
             };
 
             let is_jar = file_name.ends_with(".jar");
-            let is_disabled = file_name.ends_with(".jar.disabled") || file_name.ends_with(".disabled");
+            let is_disabled =
+                file_name.ends_with(".jar.disabled") || file_name.ends_with(".disabled");
 
             if !is_jar && !is_disabled {
                 continue;
@@ -236,27 +296,32 @@ pub fn scan_mods<P: AsRef<Path>>(mods_dir: P) -> Vec<ModEntry> {
             let file_size_display = format_file_size(file_size_bytes);
 
             // Attempt to inspect deep metadata from inside the jar
-            let (name, version, description, author, icon_path) = if let Some(meta) = inspect_mod_jar(&path) {
-                if meta.0.is_empty() {
+            let (name, version, description, author, icon_path) =
+                if let Some(meta) = inspect_mod_jar(&path) {
+                    if meta.0.is_empty() {
+                        let base_name = if is_disabled {
+                            file_name
+                                .trim_end_matches(".disabled")
+                                .trim_end_matches(".jar")
+                        } else {
+                            file_name.trim_end_matches(".jar")
+                        };
+                        let (n, v) = parse_name_and_version(base_name);
+                        (n, v, meta.2, meta.3, meta.4)
+                    } else {
+                        meta
+                    }
+                } else {
                     let base_name = if is_disabled {
-                        file_name.trim_end_matches(".disabled").trim_end_matches(".jar")
+                        file_name
+                            .trim_end_matches(".disabled")
+                            .trim_end_matches(".jar")
                     } else {
                         file_name.trim_end_matches(".jar")
                     };
                     let (n, v) = parse_name_and_version(base_name);
-                    (n, v, meta.2, meta.3, meta.4)
-                } else {
-                    meta
-                }
-            } else {
-                let base_name = if is_disabled {
-                    file_name.trim_end_matches(".disabled").trim_end_matches(".jar")
-                } else {
-                    file_name.trim_end_matches(".jar")
+                    (n, v, String::new(), String::new(), None)
                 };
-                let (n, v) = parse_name_and_version(base_name);
-                (n, v, String::new(), String::new(), None)
-            };
 
             mods.push(ModEntry {
                 file_name,
@@ -316,7 +381,10 @@ pub fn delete_mod<P: AsRef<Path>>(mods_dir: P, file_name: &str) -> std::io::Resu
 }
 
 /// Import an external mod (.jar) file into the instance's mods directory.
-pub fn import_mod_file<P: AsRef<Path>, Q: AsRef<Path>>(mods_dir: P, source_path: Q) -> std::io::Result<PathBuf> {
+pub fn import_mod_file<P: AsRef<Path>, Q: AsRef<Path>>(
+    mods_dir: P,
+    source_path: Q,
+) -> std::io::Result<PathBuf> {
     let dir = mods_dir.as_ref();
     let src = source_path.as_ref();
 
@@ -329,9 +397,9 @@ pub fn import_mod_file<P: AsRef<Path>, Q: AsRef<Path>>(mods_dir: P, source_path:
 
     fs::create_dir_all(dir)?;
 
-    let file_name = src
-        .file_name()
-        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid file name"))?;
+    let file_name = src.file_name().ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "Invalid file name")
+    })?;
 
     let dest = dir.join(file_name);
     fs::copy(src, &dest)?;
@@ -347,7 +415,9 @@ pub fn open_mods_folder<P: AsRef<Path>>(mods_dir: P) -> std::io::Result<()> {
 
     if cfg!(target_os = "windows") {
         let clean_dir = dunce::simplified(dir);
-        std::process::Command::new("explorer").arg(clean_dir).spawn()?;
+        std::process::Command::new("explorer")
+            .arg(clean_dir)
+            .spawn()?;
     } else if cfg!(target_os = "macos") {
         std::process::Command::new("open").arg(dir).spawn()?;
     } else {
@@ -402,7 +472,12 @@ fn parse_name_and_version(base_name: &str) -> (String, String) {
     if let Some(pos) = base_name.rfind('-') {
         let candidate_ver = &base_name[pos + 1..];
         // If candidate version starts with a digit or 'v'
-        if candidate_ver.starts_with('v') || candidate_ver.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+        if candidate_ver.starts_with('v')
+            || candidate_ver
+                .chars()
+                .next()
+                .is_some_and(|c| c.is_ascii_digit())
+        {
             return (base_name[..pos].to_string(), candidate_ver.to_string());
         }
     }
@@ -444,7 +519,9 @@ mod tests {
         // Toggle fabric to disabled
         let now_disabled = toggle_mod(&mods_dir, "fabric-api-0.92.0+1.20.4.jar").unwrap();
         assert!(!now_disabled);
-        assert!(mods_dir.join("fabric-api-0.92.0+1.20.4.jar.disabled").exists());
+        assert!(mods_dir
+            .join("fabric-api-0.92.0+1.20.4.jar.disabled")
+            .exists());
     }
 
     #[test]

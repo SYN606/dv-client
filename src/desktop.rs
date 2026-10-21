@@ -26,7 +26,11 @@ pub fn ensure_desktop_integration() {
 
         // 1. Install icon into standard XDG hicolor icon theme hierarchy
         for size in &["512x512", "256x256", "128x128", "64x64", "48x48", "32x32"] {
-            let icon_dir = data_dir.join("icons").join("hicolor").join(size).join("apps");
+            let icon_dir = data_dir
+                .join("icons")
+                .join("hicolor")
+                .join(size)
+                .join("apps");
             let _ = std::fs::create_dir_all(&icon_dir);
             let icon_path = icon_dir.join(format!("{DESKTOP_APP_ID}.png"));
             let _ = std::fs::write(&icon_path, LOGO_PNG_BYTES);
@@ -43,15 +47,14 @@ pub fn ensure_desktop_integration() {
         let _ = std::fs::create_dir_all(&apps_dir);
         let desktop_path = apps_dir.join(format!("{DESKTOP_APP_ID}.desktop"));
 
-        let current_exe = std::env::current_exe()
-            .unwrap_or_else(|_| PathBuf::from(DESKTOP_APP_ID));
+        let current_exe = std::env::current_exe().unwrap_or_else(|_| PathBuf::from(DESKTOP_APP_ID));
 
         let desktop_entry = format!(
             "[Desktop Entry]\n\
              Type=Application\n\
              Name=Digital Vigital\n\
              GenericName=Minecraft Launcher\n\
-             Comment=Digital Vigital (DV) — Minecraft Launcher\n\
+             Comment=Digital Vigital (DV) - Minecraft Launcher\n\
              Exec=\"{}\"\n\
              Icon={}\n\
              Terminal=false\n\
