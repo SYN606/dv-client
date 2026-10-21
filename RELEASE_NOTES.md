@@ -1,10 +1,9 @@
-# Digital Vigital (DV) Launcher - v1.3.0 Release Notes
+# Digital Vigital (DV) Launcher - v1.2.1 Release Notes
 
-**Digital Vigital (DV)** v1.3.0 introduces full **Multi-Java architecture (Java 8, Java 17, and Java 21)** with dynamic version matching for all Minecraft editions (legacy 1.8.9/1.12.2 to modern 1.21.4+), an automated 1-click Java 8 runtime installer, upgraded player profile switching with explicit active status badges, and professional manual profile management on fresh installs.
+**Digital Vigital (DV)** v1.2.1 introduces full **Multi-Java architecture (Java 8, Java 17, and Java 21)** with dynamic version matching for all Minecraft editions (legacy 1.8.9/1.12.2 to modern 1.21.4+), an automated 1-click Java 8 runtime installer, upgraded player profile switching with explicit active status badges, and professional manual profile management on fresh installs.
 
----
 
-## What's New in v1.3.0
+## What's New in v1.2.1
 
 ### ☕ Universal Java Support: Java 8 (Legacy) + Java 17 + Java 21 (Modern)
 - **Automatic Minecraft Version to Java Version Resolution**:
@@ -37,25 +36,22 @@
 - **Colored Loader Badges**:
   - Profile cards and shelf entries show styled loader badges: Fabric (Cyan), Forge (Amber), Quilt (Purple), NeoForge (Coral), Vanilla (Emerald).
 
----
 
-## Downloads & Available Packages (v1.3.0)
+## Downloads & Available Packages (v1.2.1)
 
 | Package | Size | Description |
 | :--- | :---: | :--- |
-| [**`DigitalVigital-Setup-1.3.0.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.3.0/DigitalVigital-Setup-1.3.0.exe) | **7.8 MB** | **Windows NSIS Installer**: Supports custom drive selection (`C:`, `D:`, `E:`), Start Menu & Desktop shortcuts, clean uninstaller, Windows Add/Remove Programs registration, and pixel-art branding. |
-| [**`DigitalVigital-v1.3.0-windows-x64-portable.zip`**](https://github.com/SYN606/dv-client/releases/download/v1.3.0/DigitalVigital-v1.3.0-windows-x64-portable.zip) | **10.6 MB** | **Standalone Portable Bundle**: Includes `dv-launcher.exe`, high-res logos (`.png`, `.ico`), `README.md`, and `LICENSE` for plug-and-play usage without installation. |
+| [**`DigitalVigital-Setup-1.2.1.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.2.1/DigitalVigital-Setup-1.2.1.exe) | **7.8 MB** | **Windows NSIS Installer**: Supports custom drive selection (`C:`, `D:`, `E:`), Start Menu & Desktop shortcuts, clean uninstaller, Windows Add/Remove Programs registration, and pixel-art branding. |
+| [**`DigitalVigital-v1.2.1-windows-x64-portable.zip`**](https://github.com/SYN606/dv-client/releases/download/v1.2.1/DigitalVigital-v1.2.1-windows-x64-portable.zip) | **10.6 MB** | **Standalone Portable Bundle**: Includes `dv-launcher.exe`, high-res logos (`.png`, `.ico`), `README.md`, and `LICENSE` for plug-and-play usage without installation. |
 
----
 
-## Verified SHA-256 Checksums (v1.3.0)
+## Verified SHA-256 Checksums (v1.2.1)
 ```text
-44bdc5df033505d4cbf714bf56a6929213f1d7fd74a2d154dfede2fa3a80188f  DigitalVigital-Setup-1.3.0.exe
-ab2df739922808d8f2d5f8a561acb6d502aa052458a57f4a30731ec330a54659  DigitalVigital-v1.3.0-windows-x64-portable.zip
-e48a96dcbefdddb4b4de9367da5a6a00b618833f83c806f2c09a5374a3c74a76  dv-launcher.exe
+fd5bff6124777bda4649ac54a5503fd7a6e10721f97f956d07dc2193cef4264a  DigitalVigital-Setup-1.2.1.exe
+5fe14ec08a5c21d0cf35e9bd4ab8ceafc10c03c1d651f451d5e08b0771ccc2ad  DigitalVigital-v1.2.1-windows-x64-portable.zip
+0f0eff199a805f1a4c59a70db216a3819ed2bd05e9498443493734b19192c54b  dv-launcher.exe
 ```
 
----
 
 # Previous Releases
 

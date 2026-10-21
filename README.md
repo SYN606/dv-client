@@ -5,7 +5,7 @@
 # Digital Vigital (DV) Launcher
 ### *Your Minecraft. Your Control.*
 
-[![Release](https://img.shields.io/badge/Release-v1.3.0-FF3344?style=for-the-badge)](https://github.com/SYN606/dv-client)
+[![Release](https://img.shields.io/badge/Release-v1.2.1-FF3344?style=for-the-badge)](https://github.com/SYN606/dv-client)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/flex-dv)
 [![Website](https://img.shields.io/badge/Website-digitalvigital.fun-10B981?style=for-the-badge)](https://digitalvigital.fun/minecraft)
 
