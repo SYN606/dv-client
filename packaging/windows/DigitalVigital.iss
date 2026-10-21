@@ -4,7 +4,7 @@
 [Setup]
 AppId={{8B847688-662E-4D4B-A795-B33AC6EC8B99}
 AppName=Digital Vigital Launcher
-AppVersion=1.2.0
+AppVersion=1.3.0
 AppPublisher=Digital Vigital
 AppPublisherURL=https://digitalvigital.fun
 AppSupportURL=https://discord.gg/flex-dv
@@ -15,7 +15,7 @@ DisableDirPage=no
 AllowNoIcons=yes
 AlwaysShowDirOnEditPage=yes
 OutputDir=..\..\dist
-OutputBaseFilename=DigitalVigital-Setup-1.2.0
+OutputBaseFilename=DigitalVigital-Setup-1.3.0
 SetupIconFile=..\..\assets\logo.ico
 LicenseFile=license.rtf
 Compression=lzma2/ultra64

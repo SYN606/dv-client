@@ -126,10 +126,6 @@ impl InstanceManager {
 
         mgr.load_all()?;
 
-        if mgr.instances.is_empty() {
-            mgr.create_instance("Fabric 1.21.4", "1.21.4", "fabric", None)?;
-        }
-
         Ok(mgr)
     }
 
@@ -249,7 +245,7 @@ impl InstanceManager {
                 return Some(inst);
             }
         }
-        self.instances.values().next()
+        None
     }
 }
 
@@ -295,5 +291,14 @@ mod tests {
         // Delete original
         assert!(mgr.delete_instance(&inst.id).unwrap());
         assert!(!inst.instance_dir(temp.path()).exists());
+    }
+
+    #[test]
+    fn test_no_auto_instance_on_new() {
+        let temp = tempdir().unwrap();
+        let mgr = InstanceManager::new(temp.path()).unwrap();
+        assert!(mgr.instances.is_empty());
+        let config = LauncherConfig::default();
+        assert!(mgr.get_active_instance(&config).is_none());
     }
 }

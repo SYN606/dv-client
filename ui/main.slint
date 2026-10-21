@@ -53,6 +53,7 @@ export struct JavaItem {
     vendor: string,
     version: string,
     display_name: string,
+    major_version: int,
 }
 
 export struct GpuItem {
@@ -204,14 +205,16 @@ export component MainWindow inherits Window {
     // Application State Properties
     // 0: Play, 1: Profiles, 2: Mods, 3: Downloads, 4: Accounts, 5: Settings, 6: Logs
     in-out property <int> active_tab: 0;
-    in-out property <string> active_instance_name: "Fabric 1.21.4";
-    in-out property <string> active_mc_version: "1.21.4";
-    in-out property <string> active_mod_loader: "Fabric";
+    in-out property <string> active_instance_name: "No Profile Selected";
+    in-out property <string> active_mc_version: "";
+    in-out property <string> active_mod_loader: "";
+    in-out property <bool> has_active_instance: false;
     in-out property <string> active_username: "";
     in-out property <string> active_account_type: "Not Configured";
     in-out property <string> java_runtime_display: "OpenJDK 21 (Auto-Detected)";
     in-out property <bool> has_java: true;
     in-out property <bool> has_java_21: false;
+    in-out property <bool> has_java_8: false;
     in-out property <bool> is_installing_java: false;
     in-out property <float> java_install_progress: 0.0;
     in-out property <string> java_install_status: "";
@@ -324,6 +327,7 @@ export component MainWindow inherits Window {
     callback validate_offline_username(string);
     callback start_ms_auth_clicked();
     callback complete_ms_auth_clicked();
+    callback select_account_clicked(string);
     callback logout_account_clicked(string);
     callback clear_console_clicked();
     callback open_in_notepad_clicked();
@@ -332,6 +336,7 @@ export component MainWindow inherits Window {
     callback reset_settings_clicked();
     callback browse_java_clicked();
     callback install_java_clicked();
+    callback install_java_8_clicked();
     callback select_java_runtime(string);
     callback browse_root_dir_clicked();
     callback browse_profiles_dir_clicked();
@@ -529,7 +534,7 @@ export component MainWindow inherits Window {
                             spacing: 3px;
                             horizontal-stretch: 1;
                             Text {
-                                text: root.active_instance_name;
+                                text: root.has_active_instance ? root.active_instance_name : "No Profile Selected";
                                 font-size: 15px;
                                 font-weight: 800;
                                 color: #FFFFFF;
@@ -579,24 +584,47 @@ export component MainWindow inherits Window {
                                     spacing: 4px;
                                     horizontal-stretch: 1;
                                     Text {
-                                        text: "READY FOR ADVENTURE";
+                                        text: root.has_active_instance ? "READY FOR ADVENTURE" : "GET STARTED";
                                         font-size: 11px;
                                         font-weight: 800;
                                         color: #FF3344;
                                         letter-spacing: 1.5px;
                                     }
                                     Text {
-                                        text: root.active_instance_name;
+                                        text: root.has_active_instance ? root.active_instance_name : "No Profile Selected";
                                         font-size: 32px;
                                         font-weight: 900;
                                         color: #FFFFFF;
                                         overflow: elide;
                                     }
-                                    Text {
-                                        text: "Minecraft " + root.active_mc_version + " | " + root.active_mod_loader + " Mod Loader";
-                                        font-size: 14px;
-                                        color: #A0A5B5;
-                                        overflow: elide;
+                                    HorizontalLayout {
+                                        spacing: 8px;
+                                        if root.has_active_instance && root.active_mod_loader != "" : Rectangle {
+                                            height: 22px;
+                                            border-radius: 4px;
+                                            background: root.active_mod_loader == "Fabric" ? #0284c726 : (root.active_mod_loader == "Forge" ? #d9770626 : (root.active_mod_loader == "Quilt" ? #9333ea26 : (root.active_mod_loader == "NeoForge" ? #e11d4826 : #05966926)));
+                                            border-width: 1px;
+                                            border-color: root.active_mod_loader == "Fabric" ? #38bdf888 : (root.active_mod_loader == "Forge" ? #fbbf2488 : (root.active_mod_loader == "Quilt" ? #c084fc88 : (root.active_mod_loader == "NeoForge" ? #fb718588 : #34d39988)));
+                                            y: (parent.height - self.height) / 2;
+                                            HorizontalLayout {
+                                                padding-left: 8px;
+                                                padding-right: 8px;
+                                                Text {
+                                                    text: root.active_mod_loader;
+                                                    font-size: 11px;
+                                                    font-weight: 800;
+                                                    color: root.active_mod_loader == "Fabric" ? #38bdf8 : (root.active_mod_loader == "Forge" ? #fbbf24 : (root.active_mod_loader == "Quilt" ? #c084fc : (root.active_mod_loader == "NeoForge" ? #fb7185 : #34d399)));
+                                                    vertical-alignment: center;
+                                                }
+                                            }
+                                        }
+                                        Text {
+                                            text: root.has_active_instance ? ("Minecraft " + root.active_mc_version) : "Create or select a Minecraft profile to play";
+                                            font-size: 14px;
+                                            color: #A0A5B5;
+                                            vertical-alignment: center;
+                                            overflow: elide;
+                                        }
                                     }
                                 }
 
@@ -653,11 +681,34 @@ export component MainWindow inherits Window {
                                         alignment: center;
                                         spacing: 4px;
 
-                                        Text {
-                                            text: root.active_username != "" ? root.active_username : "No Account";
-                                            font-size: 15px;
-                                            font-weight: 800;
-                                            color: #FFFFFF;
+                                        HorizontalLayout {
+                                            spacing: 6px;
+                                            Text {
+                                                text: root.active_username != "" ? root.active_username : "No Profile";
+                                                font-size: 15px;
+                                                font-weight: 800;
+                                                color: #FFFFFF;
+                                                vertical-alignment: center;
+                                            }
+                                            if root.active_username != "" : Rectangle {
+                                                height: 18px;
+                                                border-radius: 4px;
+                                                background: root.active_account_type == "Microsoft Account" ? #0284c726 : #f59e0b26;
+                                                border-width: 1px;
+                                                border-color: root.active_account_type == "Microsoft Account" ? #38bdf866 : #fbbf2466;
+                                                y: (parent.height - self.height) / 2;
+                                                HorizontalLayout {
+                                                    padding-left: 6px;
+                                                    padding-right: 6px;
+                                                    Text {
+                                                        text: root.active_account_type == "Microsoft Account" ? "MS" : "Offline";
+                                                        font-size: 10px;
+                                                        font-weight: 800;
+                                                        color: root.active_account_type == "Microsoft Account" ? #38bdf8 : #fbbf24;
+                                                        vertical-alignment: center;
+                                                    }
+                                                }
+                                            }
                                         }
 
                                         if root.has_player_cape : Rectangle {
@@ -680,10 +731,10 @@ export component MainWindow inherits Window {
                                         }
 
                                         ActionButton {
-                                            width: 110px;
+                                            width: 120px;
                                             height: 28px;
-                                            text: "Skin & Cape";
-                                            is_primary: false;
+                                            text: root.active_username != "" ? "Switch Account" : "+ Add Player";
+                                            is_primary: root.active_username == "";
                                             clicked => { root.active_tab = 4; }
                                         }
                                     }
@@ -699,7 +750,7 @@ export component MainWindow inherits Window {
                                         height: 56px;
                                         text: root.is_running ? "STOP" :
                                               (root.is_downloading ? (root.download_progress > 0.0 ? Math.round(root.download_progress > 1.0 ? root.download_progress : root.download_progress * 100) + "%" : "DOWNLOADING...") :
-                                              (root.is_launching ? "LAUNCHING..." : "PLAY"));
+                                              (root.is_launching ? "LAUNCHING..." : (!root.has_active_instance ? "SELECT PROFILE" : "PLAY")));
                                         is_danger: root.is_running;
                                         is_primary: !root.is_running && !root.is_downloading && !root.is_launching;
                                         enabled: root.is_running || (!root.is_downloading && !root.is_launching);
@@ -707,7 +758,11 @@ export component MainWindow inherits Window {
                                             if (root.is_running) {
                                                 root.terminate_clicked();
                                             } else if (!root.is_downloading && !root.is_launching) {
-                                                root.play_clicked();
+                                                if (!root.has_active_instance) {
+                                                    root.active_tab = 1;
+                                                } else {
+                                                    root.play_clicked();
+                                                }
                                             }
                                         }
                                     }
@@ -861,7 +916,7 @@ export component MainWindow inherits Window {
                                         letter-spacing: 1px;
                                     }
                                     Text {
-                                        text: "Switch profile instantly - Active: " + root.active_instance_name;
+                                        text: root.has_active_instance ? ("Switch profile instantly - Active: " + root.active_instance_name) : "No profile selected - Pick or create a profile";
                                         font-size: 12px;
                                         color: #6F768A;
                                     }
@@ -880,6 +935,31 @@ export component MainWindow inherits Window {
                                 vertical-stretch: 1;
                                 VerticalLayout {
                                     spacing: 8px;
+
+                                    if root.instance_list.length == 0 : Rectangle {
+                                        height: 52px;
+                                        border-radius: 8px;
+                                        background: #ffffff05;
+                                        border-width: 1px;
+                                        border-color: #ffffff10;
+                                        HorizontalLayout {
+                                            alignment: center;
+                                            spacing: 12px;
+                                            Text {
+                                                text: "No Minecraft profiles found.";
+                                                font-size: 13px;
+                                                color: #A0A5B5;
+                                                vertical-alignment: center;
+                                            }
+                                            ActionButton {
+                                                width: 140px;
+                                                height: 32px;
+                                                text: "+ Create Profile";
+                                                is_primary: true;
+                                                clicked => { root.active_tab = 1; }
+                                            }
+                                        }
+                                    }
 
                                     for inst in root.instance_list : Rectangle {
                                         height: 48px;
@@ -1247,6 +1327,23 @@ export component MainWindow inherits Window {
                             VerticalLayout {
                                 spacing: 8px;
 
+                                if root.instance_list.length == 0 : Rectangle {
+                                    height: 80px;
+                                    border-radius: 8px;
+                                    background: #ffffff05;
+                                    border-width: 1px;
+                                    border-color: #ffffff10;
+                                    HorizontalLayout {
+                                        alignment: center;
+                                        Text {
+                                            text: "No profiles installed yet. Use the 'NEW PROFILE' form above to create your first Minecraft configuration.";
+                                            font-size: 13px;
+                                            color: #A0A5B5;
+                                            vertical-alignment: center;
+                                        }
+                                    }
+                                }
+
                                 for inst in root.instance_list : GlassCard {
                                     height: 58px;
                                     background: inst.name == root.active_instance_name ? #FF33441a : #ffffff08;
@@ -1266,16 +1363,39 @@ export component MainWindow inherits Window {
 
                                         VerticalLayout {
                                             horizontal-stretch: 1;
-                                            spacing: 3px;
-                                            Text {
-                                                text: inst.name;
-                                                font-size: 15px;
-                                                font-weight: 700;
-                                                color: #FFFFFF;
+                                            spacing: 4px;
+                                            HorizontalLayout {
+                                                spacing: 8px;
+                                                Text {
+                                                    text: inst.name;
+                                                    font-size: 15px;
+                                                    font-weight: 700;
+                                                    color: #FFFFFF;
+                                                    vertical-alignment: center;
+                                                }
+                                                Rectangle {
+                                                    height: 18px;
+                                                    border-radius: 4px;
+                                                    background: inst.mod_loader == "Fabric" ? #0284c726 : (inst.mod_loader == "Forge" ? #d9770626 : (inst.mod_loader == "Quilt" ? #9333ea26 : (inst.mod_loader == "NeoForge" ? #e11d4826 : #05966926)));
+                                                    border-width: 1px;
+                                                    border-color: inst.mod_loader == "Fabric" ? #38bdf888 : (inst.mod_loader == "Forge" ? #fbbf2488 : (inst.mod_loader == "Quilt" ? #c084fc88 : (inst.mod_loader == "NeoForge" ? #fb718588 : #34d39988)));
+                                                    y: (parent.height - self.height) / 2;
+                                                    HorizontalLayout {
+                                                        padding-left: 6px;
+                                                        padding-right: 6px;
+                                                        Text {
+                                                            text: inst.mod_loader;
+                                                            font-size: 10px;
+                                                            font-weight: 800;
+                                                            color: inst.mod_loader == "Fabric" ? #38bdf8 : (inst.mod_loader == "Forge" ? #fbbf24 : (inst.mod_loader == "Quilt" ? #c084fc : (inst.mod_loader == "NeoForge" ? #fb7185 : #34d399)));
+                                                            vertical-alignment: center;
+                                                        }
+                                                    }
+                                                }
                                             }
                                             Text {
-                                                text: "Version: " + inst.mc_version + " | " + inst.mod_loader;
-                                                font-size: 13px;
+                                                text: "Minecraft " + inst.mc_version;
+                                                font-size: 12px;
                                                 color: #A0A5B5;
                                             }
                                         }
@@ -1337,7 +1457,7 @@ export component MainWindow inherits Window {
                             color: #FFFFFF;
                         }
                         Text {
-                            text: "Active Profile: " + root.active_instance_name + " | Loader: " + root.active_mod_loader + " " + root.active_mc_version;
+                            text: root.has_active_instance ? ("Active Profile: " + root.active_instance_name + " | Loader: " + root.active_mod_loader + " " + root.active_mc_version) : "No active profile selected";
                             font-size: 13px;
                             color: #A0A5B5;
                         }
@@ -2256,7 +2376,7 @@ export component MainWindow inherits Window {
                                 spacing: 8px;
 
                                 for acc in root.account_list : GlassCard {
-                                    height: 52px;
+                                    height: 54px;
                                     background: acc.username == root.active_username ? #FF33441a : #ffffff08;
                                     border-color: acc.username == root.active_username ? #FF334488 : #ffffff14;
 
@@ -2270,25 +2390,74 @@ export component MainWindow inherits Window {
                                             horizontal-stretch: 1;
                                             alignment: center;
                                             spacing: 3px;
-                                            Text {
-                                                text: acc.username;
-                                                font-size: 15px;
-                                                font-weight: 700;
-                                                color: #FFFFFF;
-                                                overflow: elide;
+                                            HorizontalLayout {
+                                                spacing: 8px;
+                                                Text {
+                                                    text: acc.username;
+                                                    font-size: 15px;
+                                                    font-weight: 700;
+                                                    color: #FFFFFF;
+                                                    overflow: elide;
+                                                }
+                                                Rectangle {
+                                                    height: 18px;
+                                                    border-radius: 4px;
+                                                    background: acc.account_type == "microsoft" ? #0284c726 : #f59e0b26;
+                                                    border-width: 1px;
+                                                    border-color: acc.account_type == "microsoft" ? #38bdf866 : #fbbf2466;
+                                                    y: (parent.height - self.height) / 2;
+                                                    HorizontalLayout {
+                                                        padding-left: 6px;
+                                                        padding-right: 6px;
+                                                        Text {
+                                                            text: acc.account_type == "microsoft" ? "Microsoft" : "Offline";
+                                                            font-size: 10px;
+                                                            font-weight: 700;
+                                                            color: acc.account_type == "microsoft" ? #38bdf8 : #fbbf24;
+                                                            vertical-alignment: center;
+                                                        }
+                                                    }
+                                                }
                                             }
                                             Text {
-                                                text: acc.account_type + " | Last active: " + acc.last_login;
-                                                font-size: 12px;
+                                                text: "Profile UUID: " + acc.id;
+                                                font-size: 11px;
                                                 color: #A0A5B5;
                                                 overflow: elide;
                                             }
                                         }
 
-                                        VerticalLayout {
+                                        HorizontalLayout {
                                             alignment: center;
-                                            ActionButton {
+                                            spacing: 8px;
+
+                                            if acc.username == root.active_username : Rectangle {
                                                 width: 80px;
+                                                height: 32px;
+                                                border-radius: 6px;
+                                                background: #10b98126;
+                                                border-width: 1px;
+                                                border-color: #10b98188;
+                                                Text {
+                                                    text: "ACTIVE";
+                                                    font-size: 11px;
+                                                    font-weight: 800;
+                                                    color: #34d399;
+                                                    horizontal-alignment: center;
+                                                    vertical-alignment: center;
+                                                }
+                                            }
+
+                                            if acc.username != root.active_username : ActionButton {
+                                                width: 95px;
+                                                height: 32px;
+                                                text: "Set Active";
+                                                is_primary: true;
+                                                clicked => { root.select_account_clicked(acc.id); }
+                                            }
+
+                                            ActionButton {
+                                                width: 75px;
                                                 height: 32px;
                                                 text: "Logout";
                                                 is_danger: true;
@@ -2551,18 +2720,27 @@ export component MainWindow inherits Window {
                                         spacing: 10px;
 
                                         ActionButton {
-                                            width: 160px;
+                                            width: 145px;
                                             height: 34px;
-                                            text: root.is_installing_java ? "Installing..." : (!root.has_java ? "Install Java 21" : "Reinstall Java 21");
+                                            text: root.is_installing_java ? "Installing..." : (!root.has_java_8 ? "Install Java 8" : "Reinstall Java 8");
+                                            is_primary: !root.has_java_8;
+                                            enabled: !root.is_installing_java;
+                                            clicked => { root.install_java_8_clicked(); }
+                                        }
+
+                                        ActionButton {
+                                            width: 155px;
+                                            height: 34px;
+                                            text: root.is_installing_java ? "Installing..." : (!root.has_java_21 ? "Install Java 21" : "Reinstall Java 21");
                                             is_primary: !root.has_java || !root.has_java_21;
                                             enabled: !root.is_installing_java;
                                             clicked => { root.install_java_clicked(); }
                                         }
 
                                         ActionButton {
-                                            width: 130px;
+                                            width: 110px;
                                             height: 34px;
-                                            text: "Browse Java...";
+                                            text: "Browse...";
                                             is_primary: false;
                                             clicked => { root.browse_java_clicked(); }
                                         }
@@ -2651,6 +2829,23 @@ export component MainWindow inherits Window {
 
                                             HorizontalLayout {
                                                 spacing: 10px;
+                                                Rectangle {
+                                                    width: 58px;
+                                                    height: 22px;
+                                                    border-radius: 4px;
+                                                    background: j.major_version == 8 ? #f59e0b26 : (j.major_version >= 21 ? #10b98126 : #3b82f626);
+                                                    border-width: 1px;
+                                                    border-color: j.major_version == 8 ? #f59e0b88 : (j.major_version >= 21 ? #10b98188 : #3b82f688);
+                                                    y: (parent.height - self.height) / 2;
+                                                    Text {
+                                                        text: "Java " + j.major_version;
+                                                        font-size: 11px;
+                                                        font-weight: 800;
+                                                        color: j.major_version == 8 ? #fbbf24 : (j.major_version >= 21 ? #34d399 : #60a5fa);
+                                                        vertical-alignment: center;
+                                                        horizontal-alignment: center;
+                                                    }
+                                                }
                                                 Text { text: j.display_name; font-size: 13px; font-weight: 600; color: #FFFFFF; vertical-alignment: center; }
                                             }
 
@@ -2678,14 +2873,14 @@ export component MainWindow inherits Window {
                                     text: "JAVA RUNTIME COMPATIBILITY MATRIX";
                                     font-size: 11px;
                                     font-weight: 800;
-                                    color: #A0A5B5;
+                                    color: #FF3344;
                                     letter-spacing: 1px;
                                 }
 
                                 Text {
-                                    text: "Minecraft 1.20.5+ : Requires Java 21 or newer (64-bit architecture recommended).";
+                                    text: "Minecraft 1.20.5+ : Requires Java 21 or newer (Temurin / OpenJDK 21 x64).";
                                     font-size: 12px;
-                                    color: #A0A5B5;
+                                    color: #FFFFFF;
                                 }
                                 Text {
                                     text: "Minecraft 1.17 to 1.20.4 : Requires Java 17 runtime.";
@@ -2693,9 +2888,15 @@ export component MainWindow inherits Window {
                                     color: #A0A5B5;
                                 }
                                 Text {
-                                    text: "Minecraft 1.16.5 and older : Runs best on Java 8 or Java 11.";
+                                    text: "Minecraft 1.16.5 & older (1.12.2, 1.8.9, 1.7.10) : Requires Java 8 runtime (Forge & Vanilla).";
                                     font-size: 12px;
-                                    color: #A0A5B5;
+                                    color: #FFFFFF;
+                                }
+                                Text {
+                                    text: "Smart Dynamic Auto-Switch : DV automatically detects and switches to the correct Java version for each profile.";
+                                    font-size: 12px;
+                                    font-weight: 600;
+                                    color: #10B981;
                                 }
                             }
                         }

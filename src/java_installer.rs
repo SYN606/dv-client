@@ -1,7 +1,7 @@
-//! Automatic Java 21 Downloader and Installer for Windows.
+//! Automatic Java Downloader and Installer for Windows.
 //!
 //! Provides one-click automated download, safe extraction, and setup of
-//! Eclipse Temurin OpenJDK 21 JRE into the launcher's isolated runtimes directory.
+//! Eclipse Temurin OpenJDK (Java 8, Java 17, Java 21) JRE runtimes into the launcher's isolated runtimes directory.
 
 use futures_util::StreamExt;
 use reqwest::Client;
@@ -15,7 +15,7 @@ use crate::java_detector::JavaDetector;
 
 #[derive(Debug, Error)]
 pub enum JavaInstallError {
-    #[error("Network error while downloading Java 21: {0}")]
+    #[error("Network error while downloading Java: {0}")]
     Network(#[from] reqwest::Error),
     #[error("Filesystem I/O error: {0}")]
     Io(#[from] io::Error),
@@ -34,33 +34,77 @@ pub struct JavaInstaller;
 impl JavaInstaller {
     /// Returns the download endpoints for Windows Java 21 in prioritized order.
     pub fn get_download_endpoints() -> Vec<(&'static str, &'static str)> {
+        Self::get_download_endpoints_for_version(21)
+    }
+
+    /// Returns download endpoints for a specified Java major version (8, 17, 21).
+    pub fn get_download_endpoints_for_version(version: u32) -> Vec<(&'static str, &'static str)> {
         let arch = std::env::consts::ARCH;
-        if arch == "aarch64" {
-            vec![
+        match version {
+            8 => vec![
                 (
-                    "Adoptium Temurin 21 JRE (ARM64)",
-                    "https://api.adoptium.net/v3/binary/latest/21/ga/windows/aarch64/jre/hotspot/normal/eclipse",
+                    "Adoptium Temurin 8 JRE (x64)",
+                    "https://api.adoptium.net/v3/binary/latest/8/ga/windows/x64/jre/hotspot/normal/eclipse",
                 ),
                 (
-                    "Microsoft OpenJDK 21 (ARM64)",
-                    "https://aka.ms/download-jdk/microsoft-jdk-21.0.6-windows-aarch64.zip",
+                    "Adoptium Temurin 8 JRE Direct (x64)",
+                    "https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u442-b06/OpenJDK8U-jre_x64_windows_hotspot_8u442b06.zip",
                 ),
-            ]
-        } else {
-            vec![
-                (
-                    "Adoptium Temurin 21 JRE (x64)",
-                    "https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse",
-                ),
-                (
-                    "Microsoft OpenJDK 21 (x64)",
-                    "https://aka.ms/download-jdk/microsoft-jdk-21.0.6-windows-x64.zip",
-                ),
-                (
-                    "Adoptium Temurin 21 JRE Mirror (x64)",
-                    "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jre_x64_windows_hotspot_21.0.6_7.zip",
-                ),
-            ]
+            ],
+            17 => {
+                if arch == "aarch64" {
+                    vec![
+                        (
+                            "Adoptium Temurin 17 JRE (ARM64)",
+                            "https://api.adoptium.net/v3/binary/latest/17/ga/windows/aarch64/jre/hotspot/normal/eclipse",
+                        ),
+                        (
+                            "Microsoft OpenJDK 17 (ARM64)",
+                            "https://aka.ms/download-jdk/microsoft-jdk-17.0.14-windows-aarch64.zip",
+                        ),
+                    ]
+                } else {
+                    vec![
+                        (
+                            "Adoptium Temurin 17 JRE (x64)",
+                            "https://api.adoptium.net/v3/binary/latest/17/ga/windows/x64/jre/hotspot/normal/eclipse",
+                        ),
+                        (
+                            "Microsoft OpenJDK 17 (x64)",
+                            "https://aka.ms/download-jdk/microsoft-jdk-17.0.14-windows-x64.zip",
+                        ),
+                    ]
+                }
+            }
+            _ => {
+                if arch == "aarch64" {
+                    vec![
+                        (
+                            "Adoptium Temurin 21 JRE (ARM64)",
+                            "https://api.adoptium.net/v3/binary/latest/21/ga/windows/aarch64/jre/hotspot/normal/eclipse",
+                        ),
+                        (
+                            "Microsoft OpenJDK 21 (ARM64)",
+                            "https://aka.ms/download-jdk/microsoft-jdk-21.0.6-windows-aarch64.zip",
+                        ),
+                    ]
+                } else {
+                    vec![
+                        (
+                            "Adoptium Temurin 21 JRE (x64)",
+                            "https://api.adoptium.net/v3/binary/latest/21/ga/windows/x64/jre/hotspot/normal/eclipse",
+                        ),
+                        (
+                            "Microsoft OpenJDK 21 (x64)",
+                            "https://aka.ms/download-jdk/microsoft-jdk-21.0.6-windows-x64.zip",
+                        ),
+                        (
+                            "Adoptium Temurin 21 JRE Mirror (x64)",
+                            "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.6%2B7/OpenJDK21U-jre_x64_windows_hotspot_21.0.6_7.zip",
+                        ),
+                    ]
+                }
+            }
         }
     }
 
@@ -116,9 +160,10 @@ impl JavaInstaller {
         None
     }
 
-    /// Downloads and installs Java 21 into `runtimes_dir/java-21`.
+    /// Downloads and installs a specific Java major version (8, 17, 21) into `runtimes_dir/java-{version}`.
     /// Reports progress via `progress_cb(fraction, status_text)`.
-    pub async fn install_java_21<F>(
+    pub async fn install_java_version<F>(
+        version: u32,
         runtimes_dir: &Path,
         progress_cb: F,
     ) -> Result<PathBuf, JavaInstallError>
@@ -127,18 +172,18 @@ impl JavaInstaller {
     {
         fs::create_dir_all(runtimes_dir)?;
         let runtimes_canonical = dunce::canonicalize(runtimes_dir)?;
-        let install_dest = runtimes_canonical.join("java-21");
-        let zip_temp_path = runtimes_canonical.join("java-21-download.zip");
+        let install_dest = runtimes_canonical.join(format!("java-{}", version));
+        let zip_temp_path = runtimes_canonical.join(format!("java-{}-download.zip", version));
 
         let client = Client::builder()
             .redirect(reqwest::redirect::Policy::limited(10))
             .build()?;
 
-        let endpoints = Self::get_download_endpoints();
+        let endpoints = Self::get_download_endpoints_for_version(version);
         let mut download_success = false;
 
         for (name, url) in endpoints {
-            info!("Attempting to download Java 21 from: {} ({})", name, url);
+            info!("Attempting to download Java {} from: {} ({})", version, name, url);
             progress_cb(0.05, &format!("Connecting to {}...", name));
 
             match client.get(url).send().await {
@@ -183,8 +228,8 @@ impl JavaInstaller {
                                     let fraction = 0.05
                                         + (downloaded as f32 / total_bytes as f32).min(1.0) * 0.70;
                                     let msg = format!(
-                                        "Downloading Java 21: {:.1} MB / {:.1} MB ({}%)",
-                                        downloaded_mb, total_mb, pct
+                                        "Downloading Java {}: {:.1} MB / {:.1} MB ({}%)",
+                                        version, downloaded_mb, total_mb, pct
                                     );
                                     progress_cb(fraction, &msg);
                                 }
@@ -231,7 +276,7 @@ impl JavaInstaller {
         fs::create_dir_all(&install_dest)?;
         let install_dest_canonical = dunce::canonicalize(&install_dest)?;
 
-        progress_cb(0.80, "Extracting Java 21 runtime files...");
+        progress_cb(0.80, &format!("Extracting Java {} runtime files...", version));
         let zip_file = File::open(&zip_temp_path)?;
         let mut archive = zip::ZipArchive::new(zip_file)?;
 
@@ -321,7 +366,7 @@ impl JavaInstaller {
         let _ = fs::remove_file(&zip_temp_path);
 
         // 3. Locate and verify the java executable
-        progress_cb(0.96, "Verifying Java 21 runtime installation...");
+        progress_cb(0.96, &format!("Verifying Java {} runtime installation...", version));
 
         let java_exe = Self::find_java_in_directory(&install_dest_canonical)
             .ok_or(JavaInstallError::InvalidRuntime)?;
@@ -340,8 +385,41 @@ impl JavaInstaller {
             );
         }
 
-        progress_cb(1.0, "Java 21 installed and verified successfully!");
+        progress_cb(1.0, &format!("Java {} installed and verified successfully!", version));
         Ok(java_exe)
+    }
+
+    /// Convenience wrapper for Java 21 installation.
+    pub async fn install_java_21<F>(
+        runtimes_dir: &Path,
+        progress_cb: F,
+    ) -> Result<PathBuf, JavaInstallError>
+    where
+        F: Fn(f32, &str) + Send + Sync + 'static,
+    {
+        Self::install_java_version(21, runtimes_dir, progress_cb).await
+    }
+
+    /// Convenience wrapper for Java 8 installation.
+    pub async fn install_java_8<F>(
+        runtimes_dir: &Path,
+        progress_cb: F,
+    ) -> Result<PathBuf, JavaInstallError>
+    where
+        F: Fn(f32, &str) + Send + Sync + 'static,
+    {
+        Self::install_java_version(8, runtimes_dir, progress_cb).await
+    }
+
+    /// Convenience wrapper for Java 17 installation.
+    pub async fn install_java_17<F>(
+        runtimes_dir: &Path,
+        progress_cb: F,
+    ) -> Result<PathBuf, JavaInstallError>
+    where
+        F: Fn(f32, &str) + Send + Sync + 'static,
+    {
+        Self::install_java_version(17, runtimes_dir, progress_cb).await
     }
 }
 
@@ -352,12 +430,16 @@ mod tests {
 
     #[test]
     fn test_download_endpoints_defined() {
-        let endpoints = JavaInstaller::get_download_endpoints();
-        assert!(!endpoints.is_empty());
-        for (name, url) in endpoints {
-            assert!(!name.is_empty());
-            assert!(url.starts_with("https://"));
+        for ver in [8, 17, 21] {
+            let endpoints = JavaInstaller::get_download_endpoints_for_version(ver);
+            assert!(!endpoints.is_empty(), "Endpoints for Java {} must not be empty", ver);
+            for (name, url) in endpoints {
+                assert!(!name.is_empty());
+                assert!(url.starts_with("https://"));
+            }
         }
+        let default_endpoints = JavaInstaller::get_download_endpoints();
+        assert!(!default_endpoints.is_empty());
     }
 
     #[test]

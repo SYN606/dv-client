@@ -76,14 +76,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let has_any_java = !detected_javas.is_empty();
     let has_java_21 = detected_javas.iter().any(|j| j.major_version >= 21);
+    let has_java_8 = detected_javas.iter().any(|j| j.major_version == 8);
     main_window.set_has_java(has_any_java);
     main_window.set_has_java_21(has_java_21);
+    main_window.set_has_java_8(has_java_8);
 
     // Populate UI initial state
     let java_display = if let Some(ref j) = best_java {
         j.display_name.clone()
     } else {
-        "Java Not Found on System (Install Java 21 Below)".to_string()
+        "Java Not Found on System (Install Java Below)".to_string()
     };
     main_window.set_java_runtime_display(SharedString::from(&java_display));
 
@@ -95,6 +97,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             vendor: SharedString::from(&j.vendor),
             version: SharedString::from(&j.full_version),
             display_name: SharedString::from(&j.display_name),
+            major_version: j.major_version as i32,
         })
         .collect();
     main_window.set_java_list(ModelRc::new(VecModel::from(java_items)));
@@ -422,32 +425,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 };
 
+                let required_java_major = JavaDetector::required_java_major_version(&inst.minecraft_version);
+                let detected_javas = JavaDetector::scan_system();
+
+                let best_auto_java = JavaDetector::find_best_java(&detected_javas, &inst.minecraft_version)
+                    .map(|j| j.path.clone());
+
                 let java_candidate_path = inst
                     .custom_java_path
                     .clone()
+                    .or(best_auto_java)
                     .or_else(|| config_clone.default_java_path.clone())
                     .or_else(|| java_opt.map(|j| j.path));
 
                 let java_path = match java_candidate_path {
                     Some(ref p) if p.exists() => p.clone(),
                     _ => {
-                        // Attempt fallback to first detected Java on system
-                        if let Some(detected) = JavaDetector::scan_system().into_iter().next() {
-                            detected.path
-                        } else {
-                            let _ = slint::invoke_from_event_loop({
-                                let ui_w = ui_w.clone();
-                                move || {
-                                    if let Some(ui) = ui_w.upgrade() {
-                                        ui.set_game_status(SharedString::from(
-                                            "Java 21 Required. Please click 'Install Java 21'.",
-                                        ));
-                                        ui.set_is_launching(false);
-                                    }
+                        let _ = slint::invoke_from_event_loop({
+                            let ui_w = ui_w.clone();
+                            let mc_ver = inst.minecraft_version.clone();
+                            let req_ver = required_java_major;
+                            move || {
+                                if let Some(ui) = ui_w.upgrade() {
+                                    let req_btn_text = if req_ver == 8 { "Install Java 8" } else { "Install Java 21" };
+                                    ui.set_game_status(SharedString::from(format!(
+                                        "Java {} Required for Minecraft {}. Click '{}' in Settings.",
+                                        req_ver, mc_ver, req_btn_text
+                                    )));
+                                    ui.set_is_launching(false);
+                                    ui.set_active_tab(5); // Switch to Settings tab
                                 }
-                            });
-                            return;
-                        }
+                            }
+                        });
+                        return;
                     }
                 };
 
@@ -875,9 +885,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let ui_w = ui_weak.clone();
 
             tokio::spawn(async move {
-                {
+                let created = {
                     let mut im = inst_mgr.lock().await;
-                    let _ = im.create_instance(&name, &ver, &loader, None);
+                    im.create_instance(&name, &ver, &loader, None).ok()
+                };
+                if let Some(inst) = created {
+                    let mut cm = cfg.lock().await;
+                    cm.config.active_instance_id = Some(inst.id.clone());
+                    let _ = cm.save();
                 }
                 dispatch_refresh_instances(ui_w.clone(), &inst_mgr, &cfg).await;
                 dispatch_refresh_mods(ui_w, &inst_mgr, &cfg).await;
@@ -901,6 +916,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 {
                     let mut im = inst_mgr.lock().await;
                     let _ = im.delete_instance(&id_str);
+                    let mut cm = cfg.lock().await;
+                    if cm.config.active_instance_id.as_deref() == Some(&id_str) {
+                        cm.config.active_instance_id = None;
+                        let _ = cm.save();
+                    }
                 }
                 dispatch_refresh_instances(ui_w.clone(), &inst_mgr, &cfg).await;
                 dispatch_refresh_mods(ui_w, &inst_mgr, &cfg).await;
@@ -1521,8 +1541,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 {
                     let mut a = auth.lock().await;
                     let _ = a.logout(&id_str);
+                    let mut cm = cfg.lock().await;
+                    if cm.config.active_account_id.as_deref() == Some(&id_str) {
+                        cm.config.active_account_id = None;
+                        let _ = cm.save();
+                    }
                 }
                 dispatch_refresh_accounts(ui_w, &auth, &cfg).await;
+            });
+        });
+    }
+
+    // Callback: SELECT ACTIVE ACCOUNT PROFILE
+    {
+        let auth_arc = auth_client.clone();
+        let cfg_arc = config_mgr.clone();
+        let ui_weak = main_window.as_weak();
+
+        main_window.on_select_account_clicked(move |id: SharedString| {
+            let auth = auth_arc.clone();
+            let cfg = cfg_arc.clone();
+            let ui_w = ui_weak.clone();
+            let id_str = id.to_string();
+
+            tokio::spawn(async move {
+                {
+                    let mut cm = cfg.lock().await;
+                    cm.config.active_account_id = Some(id_str);
+                    let _ = cm.save();
+                }
+                dispatch_refresh_accounts(ui_w.clone(), &auth, &cfg).await;
+                let _ = slint::invoke_from_event_loop(move || {
+                    if let Some(ui) = ui_w.upgrade() {
+                        ui.set_game_status(SharedString::from("Active player profile updated"));
+                    }
+                });
             });
         });
     }
@@ -1847,106 +1900,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             let cfg = cfg_arc.clone();
 
             tokio::spawn(async move {
-                let _ = slint::invoke_from_event_loop({
-                    let ui_w = ui_w.clone();
-                    move || {
-                        if let Some(ui) = ui_w.upgrade() {
-                            ui.set_is_installing_java(true);
-                            ui.set_java_install_progress(0.05);
-                            ui.set_java_install_status(SharedString::from(
-                                "Connecting to Adoptium for Eclipse Temurin Java 21...",
-                            ));
-                        }
-                    }
-                });
+                perform_automated_java_install(21, ui_w, cfg).await;
+            });
+        });
+    }
 
-                let runtimes_dir = {
-                    let cm = cfg.lock().await;
-                    cm.config.runtimes_dir()
-                };
+    // Callback: INSTALL JAVA 8 FOR WINDOWS (Legacy Minecraft 1.8.9 - 1.16.5)
+    {
+        let ui_weak = main_window.as_weak();
+        let cfg_arc = config_mgr.clone();
 
-                let ui_for_progress = ui_w.clone();
-                let progress_cb = move |progress: f32, status: &str| {
-                    let status_str = status.to_string();
-                    let _ = slint::invoke_from_event_loop({
-                        let ui_w = ui_for_progress.clone();
-                        move || {
-                            if let Some(ui) = ui_w.upgrade() {
-                                ui.set_java_install_progress(progress);
-                                ui.set_java_install_status(SharedString::from(status_str));
-                            }
-                        }
-                    });
-                };
+        main_window.on_install_java_8_clicked(move || {
+            let ui_w = ui_weak.clone();
+            let cfg = cfg_arc.clone();
 
-                match JavaInstaller::install_java_21(&runtimes_dir, progress_cb).await {
-                    Ok(installed_java_path) => {
-                        info!("Java 21 successfully installed at: {:?}", installed_java_path);
-
-                        // Save in config
-                        {
-                            let mut cm = cfg.lock().await;
-                            cm.config.default_java_path = Some(installed_java_path.clone());
-                            let _ = cm.save();
-                        }
-
-                        // Inspect to get full display name
-                        let disp_name = if let Some(info) =
-                            JavaDetector::inspect_executable(&installed_java_path)
-                        {
-                            info.display_name
-                        } else {
-                            "Eclipse Temurin Java 21 (v21)".to_string()
-                        };
-
-                        // Refresh scanned Javas
-                        let mut all_javas = JavaDetector::scan_system();
-                        if !all_javas.iter().any(|j| j.path == installed_java_path) {
-                            if let Some(info) =
-                                JavaDetector::inspect_executable(&installed_java_path)
-                            {
-                                all_javas.insert(0, info);
-                            }
-                        }
-
-                        let java_items: Vec<JavaItem> = all_javas
-                            .iter()
-                            .map(|j| JavaItem {
-                                path: SharedString::from(j.path.to_string_lossy().to_string()),
-                                vendor: SharedString::from(&j.vendor),
-                                version: SharedString::from(&j.full_version),
-                                display_name: SharedString::from(&j.display_name),
-                            })
-                            .collect();
-
-                        let path_str = installed_java_path.to_string_lossy().to_string();
-
-                        let _ = slint::invoke_from_event_loop(move || {
-                            if let Some(ui) = ui_w.upgrade() {
-                                ui.set_is_installing_java(false);
-                                ui.set_has_java(true);
-                                ui.set_has_java_21(true);
-                                ui.set_java_runtime_display(SharedString::from(&disp_name));
-                                ui.set_custom_java_path(SharedString::from(&path_str));
-                                ui.set_java_list(ModelRc::new(VecModel::from(java_items)));
-                                ui.set_java_install_status(SharedString::from(
-                                    "Java 21 installed successfully!",
-                                ));
-                                ui.set_game_status(SharedString::from("Ready to Play"));
-                            }
-                        });
-                    }
-                    Err(e) => {
-                        error!("Failed to install Java 21: {}", e);
-                        let err_msg = format!("Installation error: {}", e);
-                        let _ = slint::invoke_from_event_loop(move || {
-                            if let Some(ui) = ui_w.upgrade() {
-                                ui.set_is_installing_java(false);
-                                ui.set_java_install_status(SharedString::from(err_msg));
-                            }
-                        });
-                    }
-                }
+            tokio::spawn(async move {
+                perform_automated_java_install(8, ui_w, cfg).await;
             });
         });
     }
@@ -2480,6 +2449,122 @@ fn open_in_notepad<P: AsRef<std::path::Path>>(path: P) {
     }
 }
 
+async fn perform_automated_java_install(
+    target_version: u32,
+    ui_w: Weak<MainWindow>,
+    cfg: Arc<Mutex<ConfigManager>>,
+) {
+    let _ = slint::invoke_from_event_loop({
+        let ui_w = ui_w.clone();
+        move || {
+            if let Some(ui) = ui_w.upgrade() {
+                ui.set_is_installing_java(true);
+                ui.set_java_install_progress(0.05);
+                ui.set_java_install_status(SharedString::from(format!(
+                    "Connecting to Adoptium for Eclipse Temurin Java {}...",
+                    target_version
+                )));
+            }
+        }
+    });
+
+    let runtimes_dir = {
+        let cm = cfg.lock().await;
+        cm.config.runtimes_dir()
+    };
+
+    let ui_for_progress = ui_w.clone();
+    let progress_cb = move |progress: f32, status: &str| {
+        let status_str = status.to_string();
+        let _ = slint::invoke_from_event_loop({
+            let ui_w = ui_for_progress.clone();
+            move || {
+                if let Some(ui) = ui_w.upgrade() {
+                    ui.set_java_install_progress(progress);
+                    ui.set_java_install_status(SharedString::from(status_str));
+                }
+            }
+        });
+    };
+
+    match JavaInstaller::install_java_version(target_version, &runtimes_dir, progress_cb).await {
+        Ok(installed_java_path) => {
+            info!(
+                "Java {} successfully installed at: {:?}",
+                target_version, installed_java_path
+            );
+
+            // Save in config if default is not set or modern version
+            {
+                let mut cm = cfg.lock().await;
+                if cm.config.default_java_path.is_none() || target_version >= 21 {
+                    cm.config.default_java_path = Some(installed_java_path.clone());
+                    let _ = cm.save();
+                }
+            }
+
+            // Inspect to get full display name
+            let disp_name = if let Some(info) =
+                JavaDetector::inspect_executable(&installed_java_path)
+            {
+                info.display_name
+            } else {
+                format!("Eclipse Temurin Java {} (v{})", target_version, target_version)
+            };
+
+            // Refresh scanned Javas
+            let mut all_javas = JavaDetector::scan_system();
+            if !all_javas.iter().any(|j| j.path == installed_java_path) {
+                if let Some(info) = JavaDetector::inspect_executable(&installed_java_path) {
+                    all_javas.insert(0, info);
+                }
+            }
+
+            let java_items: Vec<JavaItem> = all_javas
+                .iter()
+                .map(|j| JavaItem {
+                    path: SharedString::from(j.path.to_string_lossy().to_string()),
+                    vendor: SharedString::from(&j.vendor),
+                    version: SharedString::from(&j.full_version),
+                    display_name: SharedString::from(&j.display_name),
+                    major_version: j.major_version as i32,
+                })
+                .collect();
+
+            let has_j8 = all_javas.iter().any(|j| j.major_version == 8);
+            let has_j21 = all_javas.iter().any(|j| j.major_version >= 21);
+            let path_str = installed_java_path.to_string_lossy().to_string();
+
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ui_w.upgrade() {
+                    ui.set_is_installing_java(false);
+                    ui.set_has_java(true);
+                    ui.set_has_java_8(has_j8);
+                    ui.set_has_java_21(has_j21);
+                    ui.set_java_runtime_display(SharedString::from(&disp_name));
+                    ui.set_custom_java_path(SharedString::from(&path_str));
+                    ui.set_java_list(ModelRc::new(VecModel::from(java_items)));
+                    ui.set_java_install_status(SharedString::from(format!(
+                        "Java {} installed successfully!",
+                        target_version
+                    )));
+                    ui.set_game_status(SharedString::from("Ready to Play"));
+                }
+            });
+        }
+        Err(e) => {
+            error!("Failed to install Java {}: {}", target_version, e);
+            let err_msg = format!("Installation error: {}", e);
+            let _ = slint::invoke_from_event_loop(move || {
+                if let Some(ui) = ui_w.upgrade() {
+                    ui.set_is_installing_java(false);
+                    ui.set_java_install_status(SharedString::from(err_msg));
+                }
+            });
+        }
+    }
+}
+
 async fn dispatch_refresh_instances(
     ui_weak: Weak<MainWindow>,
     inst_arc: &Arc<Mutex<InstanceManager>>,
@@ -2504,20 +2589,45 @@ async fn dispatch_refresh_instances(
         })
         .collect();
 
-    let active_info = im.get_active_instance(&cm.config).map(|a| {
-        let loader_title = match a.mod_loader.to_lowercase().as_str() {
-            "fabric" => "Fabric",
-            "forge" => "Forge",
-            "optifine" => "OptiFine",
-            "vanilla" => "Vanilla",
-            _ => "Fabric",
-        };
-        (
-            a.name.clone(),
-            a.minecraft_version.clone(),
-            loader_title.to_string(),
-        )
-    });
+    let (active_info, matched_java_disp) = match im.get_active_instance(&cm.config) {
+        Some(a) => {
+            let loader_title = match a.mod_loader.to_lowercase().as_str() {
+                "fabric" => "Fabric",
+                "forge" => "Forge",
+                "quilt" => "Quilt",
+                "neoforge" => "NeoForge",
+                "optifine" => "OptiFine",
+                "vanilla" => "Vanilla",
+                _ => "Fabric",
+            };
+            let detected = JavaDetector::scan_system();
+            let matched_j = a
+                .custom_java_path
+                .as_ref()
+                .and_then(|p| JavaDetector::inspect_executable(p))
+                .or_else(|| JavaDetector::find_best_java(&detected, &a.minecraft_version).cloned())
+                .or_else(|| {
+                    cm.config
+                        .default_java_path
+                        .as_ref()
+                        .and_then(|p| JavaDetector::inspect_executable(p))
+                });
+
+            let disp = match matched_j {
+                Some(j) => format!("{} (Auto for MC {})", j.display_name, a.minecraft_version),
+                None => format!(
+                    "Java {} Required (Install from Settings)",
+                    JavaDetector::required_java_major_version(&a.minecraft_version)
+                ),
+            };
+
+            (
+                Some((a.name.clone(), a.minecraft_version.clone(), loader_title.to_string())),
+                Some(disp),
+            )
+        }
+        None => (None, None),
+    };
 
     let _ = slint::invoke_from_event_loop(move || {
         if let Some(ui) = ui_weak.upgrade() {
@@ -2533,6 +2643,15 @@ async fn dispatch_refresh_instances(
                 ui.set_active_instance_name(SharedString::from(name));
                 ui.set_active_mc_version(ver_shared);
                 ui.set_active_mod_loader(SharedString::from(loader));
+                ui.set_has_active_instance(true);
+                if let Some(j_disp) = matched_java_disp {
+                    ui.set_java_runtime_display(SharedString::from(j_disp));
+                }
+            } else {
+                ui.set_active_instance_name(SharedString::from("No Profile Selected"));
+                ui.set_active_mc_version(SharedString::from(""));
+                ui.set_active_mod_loader(SharedString::from(""));
+                ui.set_has_active_instance(false);
             }
             ui.set_instance_list(ModelRc::new(VecModel::from(items)));
         }

@@ -174,6 +174,66 @@ impl JavaDetector {
         runtimes
     }
 
+    /// Returns the recommended Java major version for a given Minecraft release.
+    pub fn required_java_major_version(mc_version: &str) -> u32 {
+        let parts: Vec<&str> = mc_version.split('.').collect();
+        if parts.len() >= 2 {
+            let minor: u32 = parts[1].parse().unwrap_or(21);
+            let patch: u32 = parts.get(2).and_then(|p| p.parse().ok()).unwrap_or(0);
+            if minor >= 21 || (minor == 20 && patch >= 5) {
+                21 // 1.20.5+ requires Java 21
+            } else if minor >= 18 || (minor == 20 && patch < 5) {
+                17 // 1.18 - 1.20.4 requires Java 17
+            } else if minor == 17 {
+                16 // 1.17 requires Java 16 / 17
+            } else {
+                8 // 1.16.5 and below (1.12.2, 1.8.9, 1.7.10) requires Java 8
+            }
+        } else {
+            21
+        }
+    }
+
+    /// Selects the best compatible installed Java runtime for a given Minecraft version.
+    pub fn find_best_java<'a>(
+        runtimes: &'a [JavaInstallation],
+        mc_version: &str,
+    ) -> Option<&'a JavaInstallation> {
+        if runtimes.is_empty() {
+            return None;
+        }
+
+        let required_major = Self::required_java_major_version(mc_version);
+
+        // 1. Exact match (e.g. Java 8 for 1.8.9, Java 21 for 1.21.4)
+        if let Some(exact) = runtimes.iter().find(|j| j.major_version == required_major) {
+            return Some(exact);
+        }
+
+        // 2. Compatibility rules:
+        if required_major == 8 {
+            // For Minecraft 1.16.5 and older (1.12.2, 1.8.9, 1.7.10),
+            // prefer Java 8, then Java 11 or lowest version.
+            runtimes
+                .iter()
+                .filter(|j| j.major_version <= 11)
+                .min_by_key(|j| j.major_version)
+                .or_else(|| runtimes.iter().min_by_key(|j| j.major_version))
+        } else if required_major <= 17 {
+            // For 1.17 - 1.20.4, prefer 17, then >= 17
+            runtimes
+                .iter()
+                .find(|j| j.major_version >= 17)
+                .or_else(|| runtimes.iter().max_by_key(|j| j.major_version))
+        } else {
+            // For 1.20.5+, require >= 21
+            runtimes
+                .iter()
+                .find(|j| j.major_version >= 21)
+                .or_else(|| runtimes.iter().max_by_key(|j| j.major_version))
+        }
+    }
+
     #[cfg(target_os = "windows")]
     fn scan_windows_java(candidate_paths: &mut Vec<PathBuf>) {
         let mut win_roots: Vec<PathBuf> = Vec::new();
@@ -384,6 +444,45 @@ Java HotSpot(TM) 64-Bit Server VM (build 25.351-b10, mixed mode)
         assert_eq!(info.major_version, 8);
         assert_eq!(info.full_version, "1.8.0_351");
         assert!(info.is_64bit);
+    }
+
+    #[test]
+    fn test_required_java_major_version_mapping() {
+        assert_eq!(JavaDetector::required_java_major_version("1.8.9"), 8);
+        assert_eq!(JavaDetector::required_java_major_version("1.12.2"), 8);
+        assert_eq!(JavaDetector::required_java_major_version("1.16.5"), 8);
+        assert_eq!(JavaDetector::required_java_major_version("1.17.1"), 16);
+        assert_eq!(JavaDetector::required_java_major_version("1.18.2"), 17);
+        assert_eq!(JavaDetector::required_java_major_version("1.20.4"), 17);
+        assert_eq!(JavaDetector::required_java_major_version("1.20.5"), 21);
+        assert_eq!(JavaDetector::required_java_major_version("1.21.4"), 21);
+    }
+
+    #[test]
+    fn test_find_best_java_matching() {
+        let j8 = JavaInstallation {
+            path: PathBuf::from("C:\\Java8\\bin\\java.exe"),
+            vendor: "Eclipse Temurin".to_string(),
+            full_version: "1.8.0_442".to_string(),
+            major_version: 8,
+            is_64bit: true,
+            display_name: "Eclipse Temurin Java 8".to_string(),
+        };
+        let j21 = JavaInstallation {
+            path: PathBuf::from("C:\\Java21\\bin\\java.exe"),
+            vendor: "Eclipse Temurin".to_string(),
+            full_version: "21.0.6".to_string(),
+            major_version: 21,
+            is_64bit: true,
+            display_name: "Eclipse Temurin Java 21".to_string(),
+        };
+        let runtimes = vec![j21.clone(), j8.clone()];
+
+        let best_8 = JavaDetector::find_best_java(&runtimes, "1.8.9").unwrap();
+        assert_eq!(best_8.major_version, 8);
+
+        let best_21 = JavaDetector::find_best_java(&runtimes, "1.21.4").unwrap();
+        assert_eq!(best_21.major_version, 21);
     }
 
     #[test]

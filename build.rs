@@ -9,8 +9,8 @@ fn main() {
         res.set("CompanyName", "Digital Vigital");
         res.set("LegalCopyright", "Copyright (c) 2026 Digital Vigital");
         res.set("OriginalFilename", "dv-launcher.exe");
-        res.set("FileVersion", "1.2.0.0");
-        res.set("ProductVersion", "1.2.0.0");
+        res.set("FileVersion", "1.3.0.0");
+        res.set("ProductVersion", "1.3.0.0");
         res.set_manifest(r#"
 <assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
   <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">

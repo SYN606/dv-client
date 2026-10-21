@@ -1,86 +1,71 @@
-# Digital Vigital (DV) Launcher - v1.2.0 Release Notes
+# Digital Vigital (DV) Launcher - v1.3.0 Release Notes
 
-**Digital Vigital (DV)** v1.2.0 introduces 1-click automated Java 21 runtime installation, modern JVM argument evaluation, Quilt profile support, Microsoft OAuth keyring auto-refresh, and revamped obsidian & ruby pixel-art branding.
-
----
-
-## What's New in v1.2.0
-
-### ⚡ One-Click Automated Java 21 Installer (Windows)
-- **Automatic Runtime Missing Detection**: Flags missing Java or outdated runtimes dynamically on both the Home Dashboard and Settings view.
-- **Official Enterprise Distribution**: Downloads official **Eclipse Temurin OpenJDK 21 JRE** from Adoptium API (~49 MB lightweight runtime bundle) with automated fallback to **Microsoft OpenJDK 21** and GitHub release mirrors.
-- **Zero Admin Privileges Required**: Extracts into `%APPDATA%\DigitalVigital\runtimes\java-21` without requiring UAC elevation, system driver access, or registry modification.
-- **Safe Archive Extraction**: Prevents directory traversal with strict Zip Slip canonical boundaries.
-- **Live Visual Progress**: Displays real-time download speeds, percentage, and extraction states directly in the Slint GUI.
-
-### 🎮 Modern Minecraft 1.13+ JVM Evaluation
-- **Dynamic Argument Engine**: Evaluates Mojang modern `arguments.jvm` array rules with parameter replacement (`${natives_directory}`, `${launcher_name}`, `${launcher_version}`, `${classpath}`, etc.) and legacy JVM fallback.
-- **Hardware Architecture Rules**: Evaluates CPU architecture matching (`x86_64`, `arm64`, `x86`, regex) to prevent loading ARM64 native binaries on x86_64 machines.
-- **macOS Native Hook**: Automatically injects `-XstartOnFirstThread` when executing on macOS.
-
-### 🔑 Microsoft OAuth Session Auto-Refresh
-- Eliminates session invalidation on restart: securely fetches and refreshes tokens via OS keyring (`CredentialVault`) before every launch attempt, guaranteeing access tokens are never transmitted as `"0"`.
-
-### 🧩 Expanded Mod Loader Compatibility
-- **Quilt Loader**: Full profile resolution, library downloading, and Quilt main-class execution.
-- **OptiFine Diagnostics**: Detects missing OptiFine base JARs in the versions directory and warns users before classloader crashes occur.
-
-### 🛡️ Revamped Obsidian & Ruby Pixel-Art Branding
-- **Multi-Resolution Windows Icon (`logo.ico`)**: Includes 256×256, 128×128, 64×64, 48×48, 32×32, and 16×16 icon layers with alpha transparency.
-- **PE Resource & UI Integration**: Embedded directly into the Windows executable (`dv-launcher.exe`), Slint UI header, dock/taskbar, and NSIS installer wizard panels.
+**Digital Vigital (DV)** v1.3.0 introduces full **Multi-Java architecture (Java 8, Java 17, and Java 21)** with dynamic version matching for all Minecraft editions (legacy 1.8.9/1.12.2 to modern 1.21.4+), an automated 1-click Java 8 runtime installer, upgraded player profile switching with explicit active status badges, and professional manual profile management on fresh installs.
 
 ---
 
-## Downloads & Available Packages (v1.2.0)
+## What's New in v1.3.0
+
+### ☕ Universal Java Support: Java 8 (Legacy) + Java 17 + Java 21 (Modern)
+- **Automatic Minecraft Version to Java Version Resolution**:
+  - **Minecraft ≤ 1.16.5** (1.8.9, 1.12.2, 1.16.5): Automatically matches **Java 8** (essential for Forge 1.8.9/1.12.2 to prevent JVM module crashing).
+  - **Minecraft 1.17 to 1.20.4**: Automatically matches **Java 17**.
+  - **Minecraft 1.20.5+** (1.20.5, 1.21.4): Automatically matches **Java 21**.
+- **1-Click Java 8 (Legacy) Automated Downloader**:
+  - Added dedicated **"Install Java 8"** button in Settings (Java & Memory).
+  - Downloads official **Eclipse Temurin OpenJDK 8 JRE** from Adoptium with automated fallback to direct binary releases.
+  - Installs cleanly into isolated `%APPDATA%\DigitalVigital\runtimes\java-8` without administrative elevation.
+- **Visual Java Version Badges**:
+  - Each detected runtime in the Settings list now displays a crisp major version badge: `[Java 8]`, `[Java 17]`, `[Java 21]` alongside path and vendor details.
+- **Dynamic Profile Java Association**:
+  - The launcher UI updates live when selecting a profile to display the exact auto-matched Java runtime (e.g. `Eclipse Temurin Java 8 (Auto for MC 1.8.9)`).
+
+### 👤 Upgraded Player Profile Integration & Management
+- **Instant 1-Click Profile Switching**:
+  - Stored accounts in the Accounts tab now feature an **[ACTIVE]** badge on the selected account and an instant **[Set Active]** button on inactive accounts.
+  - Header and hero cards dynamically render account type badges (`[Microsoft]` in cyan or `[Offline]` in amber).
+- **Hero Card Player Showcase**:
+  - Displays avatar preview, active username, account type badge, cape status, and a quick **"Switch Account"** navigation button.
+  - Clean empty state with **"+ Add Player"** when no player account is configured yet.
+- **Accurate Launch Passing**:
+  - Player credentials, offline UUIDs, and Microsoft auth tokens are passed directly to Minecraft launch arguments with in-game skin pack sync.
+
+### 🎯 Professional Fresh-Install Experience
+- **No Auto-Created Instances**:
+  - Fresh launcher installs no longer auto-create arbitrary Fabric instances.
+  - Displays a clean initial state with `"No Profile Selected"`, welcoming the user to pick or create their preferred Minecraft version and mod loader.
+- **Colored Loader Badges**:
+  - Profile cards and shelf entries show styled loader badges: Fabric (Cyan), Forge (Amber), Quilt (Purple), NeoForge (Coral), Vanilla (Emerald).
+
+---
+
+## Downloads & Available Packages (v1.3.0)
 
 | Package | Size | Description |
 | :--- | :---: | :--- |
-| [**`DigitalVigital-Setup-1.2.0.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.2.0/DigitalVigital-Setup-1.2.0.exe) | **7.8 MB** | **Windows NSIS Installer**: Supports custom drive selection (`C:`, `D:`, `E:`), Start Menu & Desktop shortcuts, clean uninstaller, Windows Add/Remove Programs registration, and pixel-art branding. |
-| [**`DigitalVigital-v1.2.0-windows-x64-portable.zip`**](https://github.com/SYN606/dv-client/releases/download/v1.2.0/DigitalVigital-v1.2.0-windows-x64-portable.zip) | **10.5 MB** | **Standalone Portable Bundle**: Includes `dv-launcher.exe`, high-res logos (`.png`, `.ico`), `README.md`, and `LICENSE` for plug-and-play usage without installation. |
+| [**`DigitalVigital-Setup-1.3.0.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.3.0/DigitalVigital-Setup-1.3.0.exe) | **7.8 MB** | **Windows NSIS Installer**: Supports custom drive selection (`C:`, `D:`, `E:`), Start Menu & Desktop shortcuts, clean uninstaller, Windows Add/Remove Programs registration, and pixel-art branding. |
+| [**`DigitalVigital-v1.3.0-windows-x64-portable.zip`**](https://github.com/SYN606/dv-client/releases/download/v1.3.0/DigitalVigital-v1.3.0-windows-x64-portable.zip) | **10.6 MB** | **Standalone Portable Bundle**: Includes `dv-launcher.exe`, high-res logos (`.png`, `.ico`), `README.md`, and `LICENSE` for plug-and-play usage without installation. |
 
 ---
 
-## Verified SHA-256 Checksums (v1.2.0)
+## Verified SHA-256 Checksums (v1.3.0)
 ```text
-54a60f57fa370dde68ee003c5f3c2b1a9aafc8185c02aa2662b47401762f82b3  DigitalVigital-Setup-1.2.0.exe
-35555a55b408f3f61c75df0f10404365398b8fdd5987b8cf96515d73676cf72  DigitalVigital-v1.2.0-windows-x64-portable.zip
-676d554e2ec70a0c291a08becf84060ad25af03d25d77f9aca4c28a4b7727c22  dv-launcher.exe
+44bdc5df033505d4cbf714bf56a6929213f1d7fd74a2d154dfede2fa3a80188f  DigitalVigital-Setup-1.3.0.exe
+ab2df739922808d8f2d5f8a561acb6d502aa052458a57f4a30731ec330a54659  DigitalVigital-v1.3.0-windows-x64-portable.zip
+e48a96dcbefdddb4b4de9367da5a6a00b618833f83c806f2c09a5374a3c74a76  dv-launcher.exe
 ```
 
 ---
 
-# Digital Vigital (DV) Launcher - v1.0.0 Release Notes
+# Previous Releases
 
-**Digital Vigital (DV)** is a next-generation, high-performance Minecraft launcher built from the ground up in native Rust and Slint UI. Designed around the core philosophy of **minimalist UI, extreme performance, zero telemetry, and maximum gaming efficiency**, DV delivers instantaneous startup, isolated profiles, and background RAM conservation.
+## Digital Vigital (DV) Launcher - v1.2.0 Release Notes
 
-## Key Highlights & Features (v1.0.0)
+**Digital Vigital (DV)** v1.2.0 introduces 1-click automated Java 21 runtime installation, modern JVM argument evaluation, Quilt profile support, Microsoft OAuth keyring auto-refresh, and revamped obsidian & ruby pixel-art branding.
 
-### Extreme Performance & Ultra-Low RAM
-- **On-Launch RAM Minimization**: Automatically hides or closes the launcher window when Minecraft starts, dropping background memory consumption to near zero. Restores immediately to the foreground when the game exits.
-- **Native Rust Engine**: Completely replaces bloated Electron/Chromium and Python runtimes with native machine code and Slint hardware-accelerated rendering.
-- **Direct JVM Supervision**: Spawns and manages the Minecraft JVM directly without shell execution wrappers for maximum FPS stability and process isolation.
-
-### Windows Native Architecture & Optimizations
-- **Pure Windows Subsystem**: Built with `#![windows_subsystem = "windows"]` to ensure zero black Command Prompt windows open behind the launcher.
-- **Flicker-Free Experience**: Applied `CREATE_NO_WINDOW` across all process executions (Java version inspection, GPU detection, browser opening) to eliminate terminal flashing.
-- **Enterprise Windows JDK Detection**: Automatically discovers installed Java runtimes across all standard Windows locations.
-- **Hybrid GPU Performance Routing**:
-  - **NVIDIA**: Injects `SHIM_MCCOMPAT = 0x800000001` to force Windows hybrid graphics scheduling to route Minecraft to the discrete NVIDIA GPU.
-  - **AMD Radeon**: Applies driver performance flags (`GPU_MAX_ALLOC_PERCENT=100`, `GPU_USE_SYNC_OBJECTS=1`, `GPU_SINGLE_ALLOC_PERCENT=100`, `GPU_MAX_HEAP_SIZE=100`).
-- **Path Normalization**: Sanitizes all classpaths, library paths, and working directories with `dunce` to prevent extended-length `\\?\` UNC prefixes that break Java classloaders and LWJGL natives.
-
-### Minimalist Modern UI / UX
-- **Obsidian & Crimson Aesthetics**: Modern dark mode with translucent glass cards, crisp typography, and fluid responsive layouts.
-- **Responsive Profile Grid**: Available profiles adapt smoothly to window resizing with vertically centered "ACTIVE" badges and single-click switching.
-
-### Profile Tools & Integrity Verification
-- **File Verification Pipeline**: Validates client JAR and game libraries against Mojang SHA-1 hashes and automatically re-downloads missing or corrupt files.
-- **Asset Repair**: Re-verifies all asset index objects and repairs broken sound, texture, and language files with live progress reporting.
-- **Modrinth Mod Studio**: Built-in online mod browser with live search, loader/version filters, and one-click mod downloads.
-- **Instance Isolation**: Complete profile isolation with dedicated mod directories, config files, and custom JVM arguments.
-
-### Privacy, Security & Account Management
-- **Zero Telemetry**: No external analytics, tracking cookies, or diagnostic pings.
-- **Microsoft OAuth 2.0 PKCE**: Secure authentication with encrypted credential storage.
-- **Offline Account Validation**: Strictly validates offline usernames (alphanumeric, 3-16 characters, no spaces) and requires profile configuration before game launch.
-- **Credential Redaction**: Automatically scrubs access tokens and bearer tokens from real-time log viewers.
+### What's New in v1.2.0
+- **One-Click Automated Java 21 Installer (Windows)**: Adoptium OpenJDK 21 JRE download & extraction into isolated runtimes directory.
+- **Modern Minecraft 1.13+ JVM Evaluation**: Complete Mojang argument engine with variable replacement and CPU architecture matching.
+- **Microsoft OAuth Session Auto-Refresh**: Seamless token refresh via OS keyring vault.
+- **Expanded Mod Loader Compatibility**: Quilt profile resolution and OptiFine diagnostics.
+- **Obsidian & Ruby Pixel-Art Branding**: Multi-resolution Windows icon (`logo.ico`).
