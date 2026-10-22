@@ -1,0 +1,168 @@
+<script lang="ts">
+  import { launcher } from "../../state/launcher.svelte";
+  import { 
+    FolderKanban, 
+    Plus, 
+    FolderOpen, 
+    Trash2, 
+    Check, 
+    Play, 
+    Clock, 
+    Layers, 
+    HardDrive,
+    Sparkles
+  } from "lucide-svelte";
+
+  function getLoaderBadge(loader: string) {
+    const l = loader.toLowerCase();
+    if (l.includes("fabric")) return { name: "Fabric", color: "text-purple-400 bg-purple-500/10 border-purple-500/30" };
+    if (l.includes("neoforge")) return { name: "NeoForge", color: "text-orange-400 bg-orange-500/10 border-orange-500/30" };
+    if (l.includes("forge")) return { name: "Forge", color: "text-amber-400 bg-amber-500/10 border-amber-500/30" };
+    return { name: "Vanilla", color: "text-neutral-300 bg-white/5 border-white/10" };
+  }
+
+  function formatLastPlayed(timestamp: number | null) {
+    if (!timestamp) return "Never played";
+    const date = new Date(timestamp * 1000);
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  }
+</script>
+
+<div class="h-full overflow-y-auto p-8 space-y-6">
+  <!-- Top Bar -->
+  <div class="flex items-center justify-between pb-4 border-b border-white/6">
+    <div>
+      <h2 class="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3">
+        <FolderKanban class="w-6 h-6 text-red-500" />
+        <span>Minecraft Profiles</span>
+      </h2>
+      <p class="text-xs text-neutral-400 font-mono mt-1">
+        Manage isolated game installations, mod loaders, and memory configs.
+      </p>
+    </div>
+
+    <button
+      onclick={() => launcher.showCreateInstanceModal = true}
+      class="px-5 py-2.5 rounded-xl bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-bold text-xs uppercase tracking-wider font-mono flex items-center gap-2 shadow-lg shadow-red-500/20 transition-all cursor-pointer hover:scale-105 active:scale-95"
+    >
+      <Plus class="w-4 h-4" />
+      <span>New Profile</span>
+    </button>
+  </div>
+
+  <!-- Profiles Grid -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {#each launcher.instances as inst}
+      {@const badge = getLoaderBadge(inst.mod_loader)}
+      <div 
+        class="rounded-2xl border p-5 flex flex-col justify-between transition-all duration-200 group relative {
+          inst.is_active 
+            ? 'bg-[#140b0f] border-red-500/40 shadow-xl shadow-red-500/10' 
+            : 'bg-[#0e1017]/90 border-white/8 hover:border-white/20 hover:bg-[#11131c]'
+        }"
+      >
+        <!-- Active Tag Indicator -->
+        {#if inst.is_active}
+          <div class="absolute -top-2.5 right-4 px-2.5 py-0.5 rounded-full bg-red-600 text-white text-[9px] font-black uppercase font-mono tracking-widest shadow-md flex items-center gap-1">
+            <Check class="w-3 h-3 stroke-[3]" /> Active
+          </div>
+        {/if}
+
+        <div>
+          <div class="flex items-start justify-between mb-3">
+            <div class="w-12 h-12 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center group-hover:scale-105 transition-transform">
+              <span class="font-mono font-black text-sm text-white">MC</span>
+            </div>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded-md border uppercase font-bold {badge.color}">
+              {badge.name}
+            </span>
+          </div>
+
+          <h3 class="text-base font-bold text-white tracking-tight group-hover:text-red-400 transition-colors truncate">
+            {inst.name}
+          </h3>
+
+          <div class="mt-4 space-y-2 text-xs font-mono text-neutral-400">
+            <div class="flex items-center justify-between py-1 border-b border-white/4">
+              <span class="text-neutral-500 flex items-center gap-1.5">
+                <Layers class="w-3.5 h-3.5" /> Version
+              </span>
+              <span class="text-neutral-200 font-semibold">{inst.mc_version}</span>
+            </div>
+
+            <div class="flex items-center justify-between py-1 border-b border-white/4">
+              <span class="text-neutral-500 flex items-center gap-1.5">
+                <HardDrive class="w-3.5 h-3.5" /> RAM Max
+              </span>
+              <span class="text-neutral-200 font-semibold">{inst.max_memory_mb} MB</span>
+            </div>
+
+            <div class="flex items-center justify-between py-1">
+              <span class="text-neutral-500 flex items-center gap-1.5">
+                <Clock class="w-3.5 h-3.5" /> Played
+              </span>
+              <span class="text-neutral-400">{formatLastPlayed(inst.last_played)}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="mt-6 pt-4 border-t border-white/6 flex items-center justify-between gap-2">
+          {#if inst.is_active}
+            <button
+              onclick={() => { launcher.activeTab = "play"; launcher.launchOrStop(); }}
+              class="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white text-xs font-bold font-mono uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md"
+            >
+              <Play class="w-3.5 h-3.5 fill-white" />
+              <span>Launch</span>
+            </button>
+          {:else}
+            <button
+              onclick={() => launcher.selectInstance(inst.id)}
+              class="flex-1 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-200 hover:text-white border border-white/8 text-xs font-bold font-mono uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+            >
+              <span>Select Profile</span>
+            </button>
+          {/if}
+
+          <button
+            onclick={() => launcher.openModsFolder()}
+            title="Open Mods Folder"
+            class="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white border border-white/8 transition-all cursor-pointer"
+          >
+            <FolderOpen class="w-4 h-4" />
+          </button>
+
+          <button
+            onclick={() => launcher.deleteInstance(inst.id)}
+            title="Delete Profile"
+            class="p-2 rounded-xl bg-white/5 hover:bg-red-500/20 text-neutral-400 hover:text-red-400 border border-white/8 transition-all cursor-pointer"
+          >
+            <Trash2 class="w-4 h-4" />
+          </button>
+        </div>
+      </div>
+    {/each}
+
+    {#if launcher.instances.length === 0}
+      <div class="col-span-full py-16 text-center space-y-4 rounded-3xl border border-dashed border-white/10 bg-white/2">
+        <div class="w-16 h-16 rounded-2xl bg-red-500/10 border border-red-500/20 mx-auto flex items-center justify-center text-red-500">
+          <FolderKanban class="w-8 h-8" />
+        </div>
+        <div class="space-y-1">
+          <h3 class="text-base font-bold text-white">No Minecraft Profiles Created Yet</h3>
+          <p class="text-xs text-neutral-400 font-mono">
+            Create your first profile to download Minecraft assets, install mods, and play.
+          </p>
+        </div>
+        <button
+          onclick={() => launcher.showCreateInstanceModal = true}
+          class="px-6 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider font-mono inline-flex items-center gap-2 shadow-lg shadow-red-500/25 transition-all cursor-pointer"
+        >
+          <Plus class="w-4 h-4" />
+          <span>Create First Profile</span>
+        </button>
+      </div>
+    {/if}
+  </div>
+</div>
