@@ -1126,6 +1126,8 @@ name = "dv-launcher-app"
 version = "1.2.1"
 dependencies = [
  "dv-launcher",
+ "open",
+ "rfd 0.15.4",
  "serde",
  "serde_json",
  "tauri",
