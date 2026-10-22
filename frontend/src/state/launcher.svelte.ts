@@ -15,13 +15,15 @@ import type {
 
 export interface ModrinthSearchResult {
   project_id: string;
+  slug?: string;
   title: string;
   description: string;
   author: string;
   icon_url: string | null;
   downloads: number;
-  follows: number;
+  follows?: number;
   categories: string[];
+  versions?: string[];
 }
 
 export class LauncherState {
@@ -42,12 +44,14 @@ export class LauncherState {
   // Modals
   showCreateInstanceModal = $state(false);
   
-  // Game execution state
+  // Game execution state & Logs
   gameStatus = $state<GameExecutionState>("idle");
   launchStatusText = $state("Ready to launch");
   downloadProgress = $state<DownloadProgress>({ current: 0, total: 0, percent: 0, status: "" });
   consoleLogs = $state<string[]>([]);
   autoScrollLogs = $state(true);
+  logSearchQuery = $state("");
+  logLevelFilter = $state<"ALL" | "INFO" | "WARN" | "ERROR">("ALL");
 
   // Hardware & Java state
   detectedJavas = $state<JavaInstallation[]>([]);
@@ -77,6 +81,9 @@ export class LauncherState {
   modrinthSearchResults = $state<ModrinthSearchResult[]>([]);
   isSearchingModrinth = $state(false);
   installingModId = $state("");
+  modrinthCategory = $state("all");
+  modrinthSortBy = $state("downloads");
+  modrinthQuery = $state("");
   
   // Notifications toast
   toastMessage = $state("");
@@ -159,6 +166,7 @@ export class LauncherState {
       this.activeInstance = this.instances.find(i => i.is_active) || null;
       if (this.activeInstance) {
         await this.loadInstalledMods();
+        this.fetchModsForSelectedProfile();
       }
     } catch (e) {
       console.error("Failed to load instances:", e);
@@ -169,6 +177,7 @@ export class LauncherState {
     try {
       await invoke("select_active_instance", { id });
       await this.refreshInstances();
+      this.fetchModsForSelectedProfile();
       this.showToast("Profile selected!");
     } catch (e) {
       this.showToast("Error selecting profile: " + e);
@@ -279,6 +288,53 @@ export class LauncherState {
     }
   }
 
+  isModInstalled(mod: ModrinthSearchResult): boolean {
+    if (!this.installedMods.length) return false;
+    const modTitle = mod.title.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const modSlug = (mod.slug || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return this.installedMods.some(m => {
+      const cleanInstalled = m.clean_name.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const fileInstalled = m.filename.toLowerCase().replace(/[^a-z0-9]/g, "");
+      return (
+        (modTitle.length > 2 && cleanInstalled.includes(modTitle)) ||
+        (modSlug.length > 2 && (cleanInstalled.includes(modSlug) || fileInstalled.includes(modSlug)))
+      );
+    });
+  }
+
+  async fetchModsForSelectedProfile(category?: string, sortBy?: string, query?: string) {
+    if (!this.activeInstance) return;
+    if (category !== undefined) this.modrinthCategory = category;
+    if (sortBy !== undefined) this.modrinthSortBy = sortBy;
+    if (query !== undefined) this.modrinthQuery = query;
+
+    this.isSearchingModrinth = true;
+    try {
+      const isVanilla = this.activeInstance.mod_loader.toLowerCase() === "vanilla";
+      const loaderParam = isVanilla ? null : this.activeInstance.mod_loader.toLowerCase();
+      const catParam = this.modrinthCategory === "all" ? null : this.modrinthCategory;
+      const q = this.modrinthQuery.trim();
+
+      this.modrinthSearchResults = await invoke("search_modrinth", {
+        query: q || null,
+        loader: loaderParam,
+        gameVersion: this.activeInstance.mc_version,
+        category: catParam,
+        sortBy: this.modrinthSortBy,
+        limit: 30,
+      });
+    } catch (e) {
+      console.warn("Failed to fetch mods from Modrinth:", e);
+    } finally {
+      this.isSearchingModrinth = false;
+    }
+  }
+
+  async searchModrinth(query: string) {
+    this.modrinthQuery = query;
+    await this.fetchModsForSelectedProfile(undefined, undefined, query);
+  }
+
   async toggleMod(mod: ModItem) {
     if (!this.activeInstance) return;
     try {
@@ -293,19 +349,17 @@ export class LauncherState {
     }
   }
 
-  async searchModrinth(query: string) {
-    if (!query.trim() || !this.activeInstance) return;
-    this.isSearchingModrinth = true;
+  async deleteMod(filename: string) {
+    if (!this.activeInstance) return;
     try {
-      this.modrinthSearchResults = await invoke("search_modrinth", {
-        query: query.trim(),
-        loader: this.activeInstance.mod_loader.toLowerCase(),
-        gameVersion: this.activeInstance.mc_version
+      await invoke("delete_mod", {
+        instanceId: this.activeInstance.id,
+        filename,
       });
+      this.showToast(`Mod "${filename}" removed.`);
+      await this.loadInstalledMods();
     } catch (e) {
-      this.showToast("Mod search failed: " + e);
-    } finally {
-      this.isSearchingModrinth = false;
+      this.showToast("Failed to delete mod: " + e);
     }
   }
 
@@ -493,6 +547,85 @@ export class LauncherState {
       this.gameStatus = "idle";
       this.launchStatusText = `Launch failed: ${e}`;
       this.showToast(`Error: ${e}`);
+    }
+  }
+
+  // --- Log & Crash Management ---
+  get hasCrashDetected(): boolean {
+    return this.consoleLogs.some(l => 
+      l.includes("CrashReport") ||
+      l.includes("FATAL") ||
+      l.includes("A fatal error has been detected") ||
+      l.includes("Minecraft has crashed") ||
+      l.includes("Shutting down with exit code 1") ||
+      l.includes("Shutting down with exit code -1") ||
+      l.includes("Caused by:")
+    );
+  }
+
+  get crashReportSnippet(): string {
+    const crashLines: string[] = [];
+    let recording = false;
+    for (let i = 0; i < this.consoleLogs.length; i++) {
+      const line = this.consoleLogs[i];
+      if (
+        line.includes("Exception") ||
+        line.includes("CrashReport") ||
+        line.includes("FATAL") ||
+        line.includes("Caused by:") ||
+        line.includes("A fatal error has been detected")
+      ) {
+        recording = true;
+      }
+      if (recording) {
+        crashLines.push(line);
+        if (crashLines.length >= 40) break;
+      }
+    }
+    return crashLines.join("\n");
+  }
+
+  async loadLatestLogs() {
+    try {
+      const content: string = await invoke("get_latest_logs", {
+        instanceId: this.activeInstance?.id || null,
+      });
+      if (content && content.trim()) {
+        const lines = content.split(/\r?\n/).filter(l => l.length > 0);
+        this.consoleLogs = lines.slice(-2500);
+        this.showToast(`Loaded ${lines.length} log lines from disk.`);
+      } else {
+        this.showToast("No latest.log found on disk for this profile yet.");
+      }
+    } catch (e) {
+      this.showToast("Failed to load logs: " + e);
+    }
+  }
+
+  async openLogsFolder() {
+    try {
+      await invoke("open_logs_folder", {
+        instanceId: this.activeInstance?.id || null,
+      });
+    } catch (e) {
+      this.showToast("Failed to open logs folder: " + e);
+    }
+  }
+
+  async exportLogs() {
+    if (this.consoleLogs.length === 0) {
+      this.showToast("No log events to export.");
+      return;
+    }
+    try {
+      const saved: string | null = await invoke("export_logs", {
+        content: this.consoleLogs.join("\n"),
+      });
+      if (saved) {
+        this.showToast(`Log saved to ${saved}`);
+      }
+    } catch (e) {
+      this.showToast("Export error: " + e);
     }
   }
 

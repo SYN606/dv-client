@@ -143,7 +143,8 @@ impl ProcessSupervisor {
 
         // Spawn stream reader tasks
         let out_sender = self.output_tx.clone();
-        let log_path_clone = log_file.clone();
+        let log_path_stdout = log_file.clone();
+        let log_path_stderr = log_file.clone();
 
         let stdout_task = tokio::spawn(async move {
             if let Some(out) = stdout {
@@ -151,7 +152,7 @@ impl ProcessSupervisor {
                 let mut file = OpenOptions::new()
                     .create(true)
                     .append(true)
-                    .open(&log_path_clone)
+                    .open(&log_path_stdout)
                     .ok();
 
                 while let Ok(Some(line)) = reader.next_line().await {
@@ -168,8 +169,17 @@ impl ProcessSupervisor {
         let stderr_task = tokio::spawn(async move {
             if let Some(err) = stderr {
                 let mut reader = BufReader::new(err).lines();
+                let mut file = OpenOptions::new()
+                    .create(true)
+                    .append(true)
+                    .open(&log_path_stderr)
+                    .ok();
+
                 while let Ok(Some(line)) = reader.next_line().await {
                     let sanitized = sanitize_text(&line);
+                    if let Some(ref mut f) = file {
+                        let _ = writeln!(f, "[STDERR] {}", sanitized);
+                    }
                     let _ = err_sender.send(format!("[STDERR] {}\n", sanitized));
                 }
             }

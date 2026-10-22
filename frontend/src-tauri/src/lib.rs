@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex;
-use tracing::{info, warn};
+use tracing::info;
 
 pub struct AppState {
     pub config_mgr: Arc<Mutex<ConfigManager>>,
@@ -475,15 +475,56 @@ async fn toggle_mod(
 
 #[tauri::command]
 async fn search_modrinth(
-    query: String,
+    query: Option<String>,
     loader: Option<String>,
     game_version: Option<String>,
+    category: Option<String>,
+    sort_by: Option<String>,
+    limit: Option<u32>,
 ) -> Result<Vec<ModrinthMod>, String> {
     let client = ModrinthClient::new();
+    let q = query.unwrap_or_default();
+    let lim = limit.unwrap_or(30);
     client
-        .search_mods(&query, game_version.as_deref(), loader.as_deref())
+        .search_mods_advanced(
+            &q,
+            game_version.as_deref(),
+            loader.as_deref(),
+            category.as_deref(),
+            sort_by.as_deref(),
+            lim,
+        )
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn delete_mod(
+    instance_id: String,
+    filename: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mgr = state.instance_mgr.lock().await;
+    let inst = mgr
+        .instances
+        .get(&instance_id)
+        .ok_or_else(|| "Instance not found".to_string())?;
+
+    let mods_dir = inst.game_dir(&mgr.instances_dir).join("mods");
+    let target = mods_dir.join(&filename);
+    if target.exists() {
+        std::fs::remove_file(&target).map_err(|e| format!("Failed to delete mod: {}", e))?;
+    }
+    let alt_name = if filename.ends_with(".disabled") {
+        filename.trim_end_matches(".disabled").to_string()
+    } else {
+        format!("{}.disabled", filename)
+    };
+    let alt_target = mods_dir.join(alt_name);
+    if alt_target.exists() {
+        let _ = std::fs::remove_file(&alt_target);
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -820,6 +861,85 @@ async fn get_game_status(state: State<'_, AppState>) -> Result<String, String> {
 }
 
 // ---------------------------------------------------------------------------
+// Log Management Commands
+// ---------------------------------------------------------------------------
+
+#[tauri::command]
+async fn get_latest_logs(
+    instance_id: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    let (inst, cfg) = {
+        let mgr = state.instance_mgr.lock().await;
+        let cm = state.config_mgr.lock().await;
+        let target_id = instance_id.or_else(|| cm.config.active_instance_id.clone());
+        let target = match target_id {
+            Some(ref id) => mgr.instances.get(id).cloned(),
+            None => None,
+        };
+        (target, cm.config.clone())
+    };
+
+    if let Some(inst) = inst {
+        let log_file = inst.game_dir(cfg.instances_dir()).join("logs").join("latest.log");
+        if log_file.exists() {
+            if let Ok(content) = std::fs::read_to_string(&log_file) {
+                return Ok(content);
+            }
+        }
+    }
+    Ok(String::new())
+}
+
+#[tauri::command]
+async fn open_logs_folder(
+    instance_id: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let (inst, cfg) = {
+        let mgr = state.instance_mgr.lock().await;
+        let cm = state.config_mgr.lock().await;
+        let target_id = instance_id.or_else(|| cm.config.active_instance_id.clone());
+        let target = match target_id {
+            Some(ref id) => mgr.instances.get(id).cloned(),
+            None => None,
+        };
+        (target, cm.config.clone())
+    };
+
+    let logs_dir = if let Some(inst) = inst {
+        inst.game_dir(cfg.instances_dir()).join("logs")
+    } else {
+        cfg.base_path().join("logs")
+    };
+
+    let _ = std::fs::create_dir_all(&logs_dir);
+    open::that(&logs_dir).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn export_logs(content: String) -> Result<Option<String>, String> {
+    let file = tokio::task::spawn_blocking(move || {
+        let now = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S").to_string();
+        let default_name = format!("minecraft_log_{}.log", now);
+        rfd::FileDialog::new()
+            .set_title("Export Minecraft Log")
+            .set_file_name(&default_name)
+            .add_filter("Log Files (*.log, *.txt)", &["log", "txt"])
+            .save_file()
+            .map(|p| {
+                let _ = std::fs::write(&p, content);
+                p.to_string_lossy().to_string()
+            })
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(file)
+}
+
+// ---------------------------------------------------------------------------
 // App Entry Point & Setup
 // ---------------------------------------------------------------------------
 
@@ -971,6 +1091,7 @@ pub fn run() {
             open_folder,
             get_installed_mods,
             toggle_mod,
+            delete_mod,
             search_modrinth,
             install_modrinth_mod,
             open_mods_folder,
@@ -981,6 +1102,9 @@ pub fn run() {
             launch_game,
             stop_game,
             get_game_status,
+            get_latest_logs,
+            open_logs_folder,
+            export_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -76,10 +76,27 @@ impl ModrinthClient {
         mc_version: Option<&str>,
         loader: Option<&str>,
     ) -> Result<Vec<ModrinthMod>, LoaderError> {
+        self.search_mods_advanced(query, mc_version, loader, None, None, 40).await
+    }
+
+    /// Advanced Modrinth search with category filtering, sorting index, and result limits.
+    pub async fn search_mods_advanced(
+        &self,
+        query: &str,
+        mc_version: Option<&str>,
+        loader: Option<&str>,
+        category: Option<&str>,
+        sort_by: Option<&str>,
+        limit: u32,
+    ) -> Result<Vec<ModrinthMod>, LoaderError> {
+        let trimmed_query = query.trim();
+        let sort = sort_by.unwrap_or(if trimmed_query.is_empty() { "downloads" } else { "relevance" });
         let mut url = format!(
-            "{}/search?query={}&limit=25",
+            "{}/search?query={}&index={}&limit={}",
             MODRINTH_API_BASE,
-            urlencoding_encode(query)
+            urlencoding_encode(trimmed_query),
+            sort,
+            limit.clamp(1, 100)
         );
 
         // Build facets filter: project_type:mod
@@ -93,6 +110,12 @@ impl ModrinthClient {
         if let Some(ver) = mc_version {
             if !ver.is_empty() {
                 facets.push(format!(r#"["versions:{}"]"#, ver));
+            }
+        }
+        if let Some(cat) = category {
+            let c_clean = cat.to_lowercase();
+            if !c_clean.is_empty() && c_clean != "all" {
+                facets.push(format!(r#"["categories:{}"]"#, c_clean));
             }
         }
 
