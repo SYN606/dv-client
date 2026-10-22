@@ -4,15 +4,15 @@
 
 @layer base {
   :root {
-    --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
     --bg-base: #08090d;
     --bg-surface: #0e1118;
     --bg-card: #131722;
     --bg-card-hover: #181d2c;
-    --border-subtle: rgba(255, 255, 255, 0.07);
-    --border-bright: rgba(255, 255, 255, 0.15);
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-bright: rgba(255, 255, 255, 0.16);
 
     --primary-red: #ff3344;
     --primary-red-hover: #ff4d5e;
@@ -32,6 +32,7 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
+    letter-spacing: -0.01em;
   }
 
   code, kbd, samp, pre, .font-mono {
@@ -40,18 +41,18 @@
 
   /* Sleek Minimalist Scrollbar */
   ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 6px;
+    height: 6px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(255, 255, 255, 0.15);
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 51, 68, 0.4);
+    background: rgba(255, 51, 68, 0.5);
   }
 }
 
@@ -73,7 +74,7 @@
 
 .glass-card:hover {
   background-color: rgba(24, 29, 44, 0.85);
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.16);
 }
 
 .glow-red {
@@ -86,14 +87,4 @@
 
 .glow-cyan-sm {
   box-shadow: 0 0 12px rgba(0, 229, 255, 0.25);
-}
-
-/* Subtle animations */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.animate-fade-in {
-  animation: fadeIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
