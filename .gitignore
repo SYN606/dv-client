@@ -32,3 +32,4 @@ desktop.ini
 # Distribution packages & packaging tools
 /dist/
 packaging/appimagetool
+*.exe
