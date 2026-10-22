@@ -823,37 +823,67 @@ async fn get_game_status(state: State<'_, AppState>) -> Result<String, String> {
 // App Entry Point & Setup
 // ---------------------------------------------------------------------------
 
+fn append_startup_log(step: &str) {
+    use std::io::Write;
+    let log_path = dirs::data_dir()
+        .map(|d| d.join("DigitalVigital").join("startup.log"))
+        .unwrap_or_else(|| std::path::PathBuf::from("dv_startup.log"));
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+        let _ = writeln!(f, "[Tauri Engine] {}", step);
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tracing_subscriber::fmt::init();
+    append_startup_log("2. app_lib::run() entered");
     info!("Starting DV Client Tauri v2 Engine");
 
-    let config_mgr = match ConfigManager::new::<&str>(None) {
-        Ok(c) => Arc::new(Mutex::new(c)),
+    append_startup_log("3. Initializing ConfigManager");
+    let (config_mgr, base_data_dir, instances_dir) = match ConfigManager::new::<&str>(None) {
+        Ok(c) => {
+            let base = c.config.base_path().to_path_buf();
+            let inst = c.config.instances_dir();
+            append_startup_log(&format!("Config loaded. Base: {:?}, Instances: {:?}", base, inst));
+            (Arc::new(Mutex::new(c)), base, inst)
+        }
         Err(e) => {
-            warn!("Failed to load config: {}", e);
-            return;
+            append_startup_log(&format!("Config load error: {}. Using default fallback.", e));
+            let fallback_dir = dirs::data_dir()
+                .map(|d| d.join("DigitalVigital"))
+                .unwrap_or_else(std::env::temp_dir);
+            let _ = std::fs::create_dir_all(&fallback_dir);
+            let fallback_cfg = ConfigManager::new(Some(fallback_dir.join("config.json")))
+                .unwrap_or_else(|_| {
+                    let cfg = dv_launcher::config::LauncherConfig::default();
+                    let file_path = fallback_dir.join("config.json");
+                    let _ = std::fs::write(&file_path, serde_json::to_string(&cfg).unwrap());
+                    ConfigManager::new(Some(file_path)).unwrap()
+                });
+            let base = fallback_cfg.config.base_path().to_path_buf();
+            let inst = fallback_cfg.config.instances_dir();
+            (Arc::new(Mutex::new(fallback_cfg)), base, inst)
         }
     };
 
-    let base_data_dir = {
-        let mgr = config_mgr.blocking_lock();
-        mgr.config.base_path().to_path_buf()
-    };
-
-    let instances_dir = {
-        let mgr = config_mgr.blocking_lock();
-        mgr.config.instances_dir()
-    };
-
+    append_startup_log("4. Initializing InstanceManager");
     let instance_mgr = match InstanceManager::new(&instances_dir) {
-        Ok(i) => Arc::new(Mutex::new(i)),
+        Ok(i) => {
+            append_startup_log(&format!("InstanceManager initialized with {} instances", i.instances.len()));
+            Arc::new(Mutex::new(i))
+        }
         Err(e) => {
-            warn!("Failed to init instances: {}", e);
-            return;
+            append_startup_log(&format!("InstanceManager init error: {}. Using fallback.", e));
+            let fallback_dir = base_data_dir.join("instances");
+            let _ = std::fs::create_dir_all(&fallback_dir);
+            let i = InstanceManager::new(&fallback_dir).unwrap_or_else(|_| InstanceManager {
+                instances_dir: fallback_dir,
+                instances: std::collections::HashMap::new(),
+            });
+            Arc::new(Mutex::new(i))
         }
     };
 
+    append_startup_log("5. Initializing AuthClient & ProcessSupervisor");
     let auth_client = Arc::new(Mutex::new(MicrosoftAuthClient::new(&base_data_dir)));
     let supervisor = Arc::new(ProcessSupervisor::new());
     let discord_rpc = Arc::new(DiscordRpcHandle::new(None));
@@ -872,18 +902,21 @@ pub fn run() {
         base_data_dir,
     };
 
+    append_startup_log("6. Building Tauri Application Window");
+
     tauri::Builder::default()
         .manage(app_state)
         .plugin(tauri_plugin_log::Builder::default().build())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(move |app| {
+            append_startup_log("7. Tauri setup() callback executing");
             let handle = app.handle().clone();
 
             // Background task: stream supervisor process stdout & stderr to Tauri frontend
             let handle_logs = handle.clone();
             let mut log_rx = sup_for_logs.output_tx.subscribe();
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 while let Ok(line) = log_rx.recv().await {
                     let _ = handle_logs.emit("game-log", &line);
                 }
@@ -892,7 +925,7 @@ pub fn run() {
             // Background task: stream process state transitions
             let handle_state = handle.clone();
             let mut state_rx = sup_for_state.state_tx.subscribe();
-            tokio::spawn(async move {
+            tauri::async_runtime::spawn(async move {
                 while let Ok(st) = state_rx.recv().await {
                     let (st_name, restore_win) = match st {
                         ProcessState::Stopped => ("stopped", true),
@@ -914,6 +947,7 @@ pub fn run() {
                 }
             });
 
+            append_startup_log("8. Tauri setup() finished, webview starting");
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

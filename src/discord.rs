@@ -33,9 +33,17 @@ impl DiscordRpcHandle {
         let (tx, rx) = mpsc::unbounded_channel();
         let cid = client_id.unwrap_or_else(|| DEFAULT_DISCORD_CLIENT_ID.to_string());
 
-        tokio::spawn(async move {
-            run_discord_ipc_loop(cid, rx).await;
-        });
+        if let Ok(handle) = tokio::runtime::Handle::try_current() {
+            handle.spawn(async move {
+                run_discord_ipc_loop(cid, rx).await;
+            });
+        } else {
+            std::thread::spawn(move || {
+                if let Ok(rt) = tokio::runtime::Builder::new_current_thread().enable_all().build() {
+                    rt.block_on(run_discord_ipc_loop(cid, rx));
+                }
+            });
+        }
 
         Self { tx }
     }

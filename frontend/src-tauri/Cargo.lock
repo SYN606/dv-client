@@ -1125,6 +1125,7 @@ dependencies = [
 name = "dv-launcher-app"
 version = "1.2.1"
 dependencies = [
+ "dirs 6.0.0",
  "dv-launcher",
  "open",
  "rfd 0.15.4",
