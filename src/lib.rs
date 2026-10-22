@@ -13,5 +13,3 @@ pub mod loaders;
 pub mod minecraft;
 pub mod security;
 pub mod skins;
-#[cfg(feature = "slint-ui")]
-pub mod ui;
