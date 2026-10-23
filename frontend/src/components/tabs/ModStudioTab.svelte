@@ -1,6 +1,8 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { launcher } from "../../state/launcher.svelte";
+  import { MOD_CATEGORIES, MOD_SORT_OPTIONS } from "../../constants/minecraft";
+  import { formatDownloads } from "../../utils/formatters";
   import {
     Wrench,
     Search,
@@ -26,23 +28,8 @@
     ExternalLink,
   } from "lucide-svelte";
 
-  const categories = [
-    { id: "all", label: "All Mods" },
-    { id: "optimization", label: "Optimization" },
-    { id: "utility", label: "Utility" },
-    { id: "decoration", label: "Decoration" },
-    { id: "technology", label: "Technology" },
-    { id: "equipment", label: "Equipment" },
-    { id: "adventure", label: "Adventure" },
-    { id: "library", label: "Library" },
-  ];
-
-  const sortOptions = [
-    { id: "downloads", label: "Most Popular" },
-    { id: "follows", label: "Most Followed" },
-    { id: "updated", label: "Recently Updated" },
-    { id: "newest", label: "Newest" },
-  ];
+  const categories = MOD_CATEGORIES;
+  const sortOptions = MOD_SORT_OPTIONS;
 
   onMount(() => {
     if (launcher.activeInstance) {
@@ -759,7 +746,7 @@
                       </span>
                     {/if}
 
-                    <span>{(mod.downloads / 1000).toFixed(0)}k downloads</span>
+                    <span>{formatDownloads(mod.downloads)} downloads</span>
                     {#if mod.categories && mod.categories.length > 0}
                       <span>•</span>
                       <span class="text-neutral-300 font-sans truncate max-w-[140px]"

@@ -2,6 +2,11 @@
   import { onMount } from "svelte";
   import { launcher } from "../../state/launcher.svelte";
   import {
+    POPULAR_MINECRAFT_VERSIONS,
+    SUPPORTED_MOD_LOADERS,
+  } from "../../constants/minecraft";
+  import { formatISODate } from "../../utils/formatters";
+  import {
     X,
     FolderPlus,
     Check,
@@ -26,71 +31,8 @@
     "release",
   );
 
-  const popularVersions = [
-    {
-      ver: "1.21.4",
-      label: "1.21.4",
-      desc: "Latest Tricky Trials",
-      tag: "Latest",
-    },
-    {
-      ver: "1.20.1",
-      label: "1.20.1",
-      desc: "Huge Mod Ecosystem",
-      tag: "Popular",
-    },
-    {
-      ver: "1.19.4",
-      label: "1.19.4",
-      desc: "Wild Update Era",
-      tag: "Stable",
-    },
-    {
-      ver: "1.16.5",
-      label: "1.16.5",
-      desc: "Nether Update Era",
-      tag: "Classic",
-    },
-    {
-      ver: "1.12.2",
-      label: "1.12.2",
-      desc: "Golden Modpacks Era",
-      tag: "Legacy",
-    },
-    {
-      ver: "1.8.9",
-      label: "1.8.9",
-      desc: "Competitive PvP / Hypixel",
-      tag: "PvP",
-    },
-  ];
-
-  const loaders = [
-    {
-      id: "Fabric",
-      label: "Fabric",
-      desc: "Fastest engine, Sodium compatible",
-      color: "border-purple-500/40 text-purple-300",
-    },
-    {
-      id: "Vanilla",
-      label: "Vanilla",
-      desc: "Official unmodded Minecraft",
-      color: "border-white/20 text-neutral-200",
-    },
-    {
-      id: "NeoForge",
-      label: "NeoForge",
-      desc: "Modern Forge fork for 1.20.2+",
-      color: "border-orange-500/40 text-orange-300",
-    },
-    {
-      id: "Forge",
-      label: "Forge",
-      desc: "Traditional Minecraft Forge loader",
-      color: "border-amber-500/40 text-amber-300",
-    },
-  ];
+  const popularVersions = POPULAR_MINECRAFT_VERSIONS;
+  const loaders = SUPPORTED_MOD_LOADERS;
 
   onMount(() => {
     if (launcher.availableMinecraftVersions.length === 0) {
@@ -147,15 +89,6 @@
   function handleCreate() {
     if (!profileName.trim()) return;
     launcher.createInstance(profileName.trim(), mcVersion, modLoader);
-  }
-
-  function formatReleaseDate(dtStr: string): string {
-    if (!dtStr) return "";
-    try {
-      return dtStr.split("T")[0];
-    } catch {
-      return dtStr;
-    }
   }
 </script>
 
@@ -384,7 +317,7 @@
 
                       <div class="flex items-center gap-2 text-xs text-neutral-400 font-mono shrink-0">
                         {#if v.release_time}
-                          <span>{formatReleaseDate(v.release_time)}</span>
+                          <span>{formatISODate(v.release_time)}</span>
                         {/if}
                         {#if isSelected}
                           <Check class="w-3.5 h-3.5 text-red-400" />

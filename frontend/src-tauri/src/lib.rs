@@ -838,18 +838,80 @@ async fn pick_cape_file() -> Result<Option<String>, String> {
     Ok(file.map(|p| p.to_string_lossy().to_string()))
 }
 
-#[tauri::command]
-async fn apply_skin(username: String, file_path: String) -> Result<String, String> {
-    let res =
-        dv_launcher::skins::save_custom_skin(&username, &file_path).map_err(|e| e.to_string())?;
-    Ok(res.to_string_lossy().to_string())
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PlayerSkinPayload {
+    pub skin_data_url: String,
+    pub cape_data_url: Option<String>,
+}
+
+fn fast_base64_encode(data: &[u8]) -> String {
+    const B64: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    for chunk in data.chunks(3) {
+        let b0 = chunk[0];
+        let b1 = if chunk.len() > 1 { chunk[1] } else { 0 };
+        let b2 = if chunk.len() > 2 { chunk[2] } else { 0 };
+
+        out.push(B64[(b0 >> 2) as usize] as char);
+        out.push(B64[(((b0 & 0x03) << 4) | (b1 >> 4)) as usize] as char);
+        if chunk.len() > 1 {
+            out.push(B64[(((b1 & 0x0f) << 2) | (b2 >> 6)) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        if chunk.len() > 2 {
+            out.push(B64[(b2 & 0x3f) as usize] as char);
+        } else {
+            out.push('=');
+        }
+    }
+    out
 }
 
 #[tauri::command]
-async fn apply_cape(username: String, file_path: String) -> Result<String, String> {
-    let res =
-        dv_launcher::skins::save_custom_cape(&username, &file_path).map_err(|e| e.to_string())?;
-    Ok(res.to_string_lossy().to_string())
+async fn get_player_skin(username: Option<String>) -> Result<PlayerSkinPayload, String> {
+    let skin_path = dv_launcher::skins::get_active_skin_path(username.as_deref());
+    let skin_bytes = std::fs::read(&skin_path).map_err(|e| format!("Failed to read skin file: {}", e))?;
+    let skin_data_url = format!("data:image/png;base64,{}", fast_base64_encode(&skin_bytes));
+
+    let cape_data_url = if let Some(cape_path) = dv_launcher::skins::get_active_cape_path(username.as_deref()) {
+        if let Ok(cape_bytes) = std::fs::read(&cape_path) {
+            Some(format!("data:image/png;base64,{}", fast_base64_encode(&cape_bytes)))
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    Ok(PlayerSkinPayload {
+        skin_data_url,
+        cape_data_url,
+    })
+}
+
+#[tauri::command]
+async fn reset_skin(username: String) -> Result<PlayerSkinPayload, String> {
+    dv_launcher::skins::reset_player_skin(&username);
+    get_player_skin(Some(username)).await
+}
+
+#[tauri::command]
+async fn reset_cape(username: String) -> Result<PlayerSkinPayload, String> {
+    dv_launcher::skins::reset_player_cape(&username);
+    get_player_skin(Some(username)).await
+}
+
+#[tauri::command]
+async fn apply_skin(username: String, file_path: String) -> Result<PlayerSkinPayload, String> {
+    dv_launcher::skins::save_custom_skin(&username, &file_path).map_err(|e| e.to_string())?;
+    get_player_skin(Some(username)).await
+}
+
+#[tauri::command]
+async fn apply_cape(username: String, file_path: String) -> Result<PlayerSkinPayload, String> {
+    dv_launcher::skins::save_custom_cape(&username, &file_path).map_err(|e| e.to_string())?;
+    get_player_skin(Some(username)).await
 }
 
 // ---------------------------------------------------------------------------
@@ -1368,8 +1430,11 @@ pub fn run() {
             open_mods_folder,
             pick_skin_file,
             pick_cape_file,
+            get_player_skin,
             apply_skin,
             apply_cape,
+            reset_skin,
+            reset_cape,
             launch_game,
             stop_game,
             get_game_status,

@@ -499,6 +499,38 @@ pub fn reset_player_cape(username: &str) {
     let _ = fs::remove_file(get_universal_cape_preview_path());
 }
 
+/// Returns the path to the active raw skin file for the specified username, or universal/default steve skin.
+pub fn get_active_skin_path(username: Option<&str>) -> PathBuf {
+    let skins_dir = get_skins_dir();
+    if let Some(u) = username {
+        let user_skin = skins_dir.join(format!("{}_raw.png", u));
+        if user_skin.exists() {
+            return user_skin;
+        }
+    }
+    let universal_skin = get_universal_skin_path();
+    if universal_skin.exists() {
+        return universal_skin;
+    }
+    ensure_default_steve_skin()
+}
+
+/// Returns the path to the active cape file if present.
+pub fn get_active_cape_path(username: Option<&str>) -> Option<PathBuf> {
+    let capes_dir = get_capes_dir();
+    if let Some(u) = username {
+        let user_cape = capes_dir.join(format!("{}_cape.png", u));
+        if user_cape.exists() {
+            return Some(user_cape);
+        }
+    }
+    let universal_cape = get_universal_cape_path();
+    if universal_cape.exists() {
+        return Some(universal_cape);
+    }
+    None
+}
+
 /// Injects the Universal Player Skin & Cape into the Minecraft instance game directory.
 /// Builds a native resource pack overriding all player model variants (both legacy 1.7-1.19 and modern 1.20+)
 /// and automatically enables it in options.txt so every player sees their custom skin in-game.

@@ -104,3 +104,8 @@ export interface CatalogModItem {
   categories: string[];
   website_url?: string;
 }
+
+export interface PlayerSkinPayload {
+  skin_data_url: string;
+  cape_data_url: string | null;
+}

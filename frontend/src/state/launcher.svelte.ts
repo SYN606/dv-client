@@ -1,5 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { TauriService } from "../services/tauri";
+import { DEFAULT_STEVE_SKIN_DATA_URL } from "../constants/skins";
 import type {
   Tab,
   Instance,
@@ -13,7 +15,8 @@ import type {
   LauncherInfo,
   MinecraftVersionSummary,
   ModProvider,
-  CatalogModItem
+  CatalogModItem,
+  PlayerSkinPayload
 } from "../types";
 
 export interface ModrinthSearchResult {
@@ -98,6 +101,12 @@ export class LauncherState {
   modrinthSortBy = $state("downloads");
   modrinthQuery = $state("");
 
+  // 3D Skin & Cape state
+  activeSkinDataUrl = $state(DEFAULT_STEVE_SKIN_DATA_URL);
+  activeCapeDataUrl = $state<string | null>(null);
+  isLoadingSkin = $state(false);
+  skinModelType = $state<"classic" | "slim">("classic");
+
   // Notifications toast
   toastMessage = $state("");
   toastTimeout: any = null;
@@ -120,6 +129,7 @@ export class LauncherState {
     await this.checkHardwareAndJava();
     await this.loadSettings();
     await this.loadMinecraftVersions();
+    await this.loadPlayerSkin();
 
     // Setup Tauri real-time event subscriptions
     try {
@@ -239,6 +249,7 @@ export class LauncherState {
     try {
       await invoke("select_active_account", { id });
       await this.refreshAccounts();
+      await this.loadPlayerSkin();
       this.showToast("Player account active!");
     } catch (e) {
       this.showToast("Account error: " + e);
@@ -602,15 +613,38 @@ export class LauncherState {
   }
 
   // --- Skins & Capes ---
+  async loadPlayerSkin(username?: string) {
+    this.isLoadingSkin = true;
+    try {
+      const u = username || this.activeAccount?.username || null;
+      const res: PlayerSkinPayload = await TauriService.getPlayerSkin(u);
+      if (res && res.skin_data_url) {
+        this.activeSkinDataUrl = res.skin_data_url;
+      } else {
+        this.activeSkinDataUrl = DEFAULT_STEVE_SKIN_DATA_URL;
+      }
+      this.activeCapeDataUrl = res?.cape_data_url || null;
+    } catch (e) {
+      this.activeSkinDataUrl = DEFAULT_STEVE_SKIN_DATA_URL;
+      this.activeCapeDataUrl = null;
+    } finally {
+      this.isLoadingSkin = false;
+    }
+  }
+
   async pickAndApplySkin() {
     if (!this.activeAccount) {
       this.showToast("Select a player account first.");
       return;
     }
     try {
-      const picked: string | null = await invoke("pick_skin_file");
+      const picked: string | null = await TauriService.pickSkinFile();
       if (picked) {
-        await invoke("apply_skin", { username: this.activeAccount.username, filePath: picked });
+        const res: PlayerSkinPayload = await TauriService.applySkin(this.activeAccount.username, picked);
+        if (res && res.skin_data_url) {
+          this.activeSkinDataUrl = res.skin_data_url;
+          this.activeCapeDataUrl = res.cape_data_url || null;
+        }
         this.showToast("Skin applied to your player profile!");
       }
     } catch (e) {
@@ -624,13 +658,38 @@ export class LauncherState {
       return;
     }
     try {
-      const picked: string | null = await invoke("pick_cape_file");
+      const picked: string | null = await TauriService.pickCapeFile();
       if (picked) {
-        await invoke("apply_cape", { username: this.activeAccount.username, filePath: picked });
+        const res: PlayerSkinPayload = await TauriService.applyCape(this.activeAccount.username, picked);
+        if (res && res.cape_data_url) {
+          this.activeCapeDataUrl = res.cape_data_url;
+        }
         this.showToast("Cape applied to your profile!");
       }
     } catch (e) {
       this.showToast("Cape upload error: " + e);
+    }
+  }
+
+  async resetPlayerSkin() {
+    if (!this.activeAccount) return;
+    try {
+      const res: PlayerSkinPayload = await TauriService.resetSkin(this.activeAccount.username);
+      this.activeSkinDataUrl = res?.skin_data_url || DEFAULT_STEVE_SKIN_DATA_URL;
+      this.showToast("Reset skin to default Steve.");
+    } catch (e) {
+      this.showToast("Reset error: " + e);
+    }
+  }
+
+  async resetPlayerCape() {
+    if (!this.activeAccount) return;
+    try {
+      await TauriService.resetCape(this.activeAccount.username);
+      this.activeCapeDataUrl = null;
+      this.showToast("Removed player cape.");
+    } catch (e) {
+      this.showToast("Reset error: " + e);
     }
   }
 
