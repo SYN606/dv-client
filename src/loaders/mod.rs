@@ -5,6 +5,9 @@
 pub mod modrinth;
 pub use modrinth::{ModrinthClient, ModrinthMod};
 
+pub mod curseforge;
+pub use curseforge::{CurseForgeClient, CurseForgeMod};
+
 use crate::branding;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};

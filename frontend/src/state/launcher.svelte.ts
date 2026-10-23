@@ -1,16 +1,19 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import type { 
-  Tab, 
-  Instance, 
-  Account, 
-  JavaInstallation, 
-  GpuDevice, 
-  LauncherSettings, 
-  ModItem, 
-  DownloadProgress, 
-  GameExecutionState, 
-  LauncherInfo 
+import type {
+  Tab,
+  Instance,
+  Account,
+  JavaInstallation,
+  GpuDevice,
+  LauncherSettings,
+  ModItem,
+  DownloadProgress,
+  GameExecutionState,
+  LauncherInfo,
+  MinecraftVersionSummary,
+  ModProvider,
+  CatalogModItem
 } from "../types";
 
 export interface ModrinthSearchResult {
@@ -29,21 +32,21 @@ export interface ModrinthSearchResult {
 export class LauncherState {
   activeTab = $state<Tab>("play");
   launcherInfo = $state<LauncherInfo>({ name: "Digital Vigital", version: "1.2.1", author: "Digital Vigital", repo_url: "" });
-  
+
   // Profiles
   instances = $state<Instance[]>([]);
   activeInstance = $state<Instance | null>(null);
-  
+
   // Accounts
   accounts = $state<Account[]>([]);
   activeAccount = $state<Account | null>(null);
   showAccountModal = $state(false);
   msLoginUrl = $state("");
   isMsLoggingIn = $state(false);
-  
+
   // Modals
   showCreateInstanceModal = $state(false);
-  
+
   // Game execution state & Logs
   gameStatus = $state<GameExecutionState>("idle");
   launchStatusText = $state("Ready to launch");
@@ -76,18 +79,25 @@ export class LauncherState {
     custom_java_path: null,
   });
 
+  // Minecraft Versions
+  availableMinecraftVersions = $state<MinecraftVersionSummary[]>([]);
+  isLoadingVersions = $state(false);
+
   // Mods
   installedMods = $state<ModItem[]>([]);
   modStudioSubTab = $state<"installed" | "catalog">("installed");
   installedModsSearch = $state("");
   installedModsFilter = $state<"all" | "enabled" | "disabled">("all");
+  modProvider = $state<ModProvider>("modrinth");
+  catalogMods = $state<CatalogModItem[]>([]);
   modrinthSearchResults = $state<ModrinthSearchResult[]>([]);
   isSearchingModrinth = $state(false);
+  isSearchingCatalog = $state(false);
   installingModId = $state("");
   modrinthCategory = $state("all");
   modrinthSortBy = $state("downloads");
   modrinthQuery = $state("");
-  
+
   // Notifications toast
   toastMessage = $state("");
   toastTimeout: any = null;
@@ -103,12 +113,13 @@ export class LauncherState {
   async init() {
     try {
       this.launcherInfo = await invoke("get_launcher_info");
-    } catch (_) {}
+    } catch (_) { }
 
     await this.refreshAccounts();
     await this.refreshInstances();
     await this.checkHardwareAndJava();
     await this.loadSettings();
+    await this.loadMinecraftVersions();
 
     // Setup Tauri real-time event subscriptions
     try {
@@ -159,7 +170,7 @@ export class LauncherState {
       const st: string = await invoke("get_game_status");
       if (st === "running") this.gameStatus = "running";
       else if (st === "launching") this.gameStatus = "launching";
-    } catch (_) {}
+    } catch (_) { }
   }
 
   // --- Instance Management ---
@@ -281,6 +292,18 @@ export class LauncherState {
     }
   }
 
+  // --- Version Management ---
+  async loadMinecraftVersions() {
+    this.isLoadingVersions = true;
+    try {
+      this.availableMinecraftVersions = await invoke("get_all_minecraft_versions");
+    } catch (e) {
+      console.warn("Failed to load official Minecraft versions:", e);
+    } finally {
+      this.isLoadingVersions = false;
+    }
+  }
+
   // --- Mod Management ---
   async loadInstalledMods() {
     if (!this.activeInstance) return;
@@ -297,7 +320,7 @@ export class LauncherState {
     }
   }
 
-  getInstalledModFor(mod: ModrinthSearchResult): ModItem | null {
+  getInstalledModFor(mod: { title: string; slug?: string }): ModItem | null {
     if (!this.installedMods || !this.installedMods.length) return null;
     const modTitle = (mod.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const modSlug = (mod.slug || "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -320,7 +343,7 @@ export class LauncherState {
     }) || null;
   }
 
-  isModInstalled(mod: ModrinthSearchResult): boolean {
+  isModInstalled(mod: { title: string; slug?: string }): boolean {
     return this.getInstalledModFor(mod) !== null;
   }
 
@@ -330,24 +353,63 @@ export class LauncherState {
     if (sortBy !== undefined) this.modrinthSortBy = sortBy;
     if (query !== undefined) this.modrinthQuery = query;
 
+    this.isSearchingCatalog = true;
     this.isSearchingModrinth = true;
     try {
       const isVanilla = this.activeInstance.mod_loader.toLowerCase() === "vanilla";
       const loaderParam = isVanilla ? null : this.activeInstance.mod_loader.toLowerCase();
-      const catParam = this.modrinthCategory === "all" ? null : this.modrinthCategory;
       const q = this.modrinthQuery.trim();
 
-      this.modrinthSearchResults = await invoke("search_modrinth", {
-        query: q || null,
-        loader: loaderParam,
-        gameVersion: this.activeInstance.mc_version,
-        category: catParam,
-        sortBy: this.modrinthSortBy,
-        limit: 36,
-      });
+      if (this.modProvider === "curseforge") {
+        const results: any[] = await invoke("search_curseforge", {
+          query: q || null,
+          loader: loaderParam,
+          gameVersion: this.activeInstance.mc_version,
+          categoryId: null,
+          sortBy: this.modrinthSortBy,
+          limit: 36,
+        });
+
+        this.catalogMods = (results || []).map(cf => ({
+          provider: "curseforge",
+          id: cf.id.toString(),
+          slug: cf.slug || cf.name.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+          title: cf.name,
+          description: cf.summary,
+          author: cf.author,
+          icon_url: cf.icon_url,
+          downloads: cf.download_count,
+          categories: cf.categories || [],
+          website_url: cf.website_url,
+        }));
+      } else {
+        const catParam = this.modrinthCategory === "all" ? null : this.modrinthCategory;
+        const results: ModrinthSearchResult[] = await invoke("search_modrinth", {
+          query: q || null,
+          loader: loaderParam,
+          gameVersion: this.activeInstance.mc_version,
+          category: catParam,
+          sortBy: this.modrinthSortBy,
+          limit: 36,
+        });
+
+        this.modrinthSearchResults = results || [];
+        this.catalogMods = (results || []).map(mr => ({
+          provider: "modrinth",
+          id: mr.project_id,
+          slug: mr.slug || mr.title.toLowerCase().replace(/[^a-z0-9]/g, "-"),
+          title: mr.title,
+          description: mr.description,
+          author: mr.author,
+          icon_url: mr.icon_url,
+          downloads: mr.downloads,
+          categories: mr.categories || [],
+        }));
+      }
     } catch (e) {
-      console.warn("Failed to fetch mods from Modrinth:", e);
+      console.warn("Failed to fetch mods from catalog:", e);
     } finally {
+      this.isSearchingCatalog = false;
       this.isSearchingModrinth = false;
     }
   }
@@ -419,7 +481,32 @@ export class LauncherState {
     }
   }
 
-  async uninstallCatalogMod(mod: ModrinthSearchResult) {
+  async installCatalogMod(mod: CatalogModItem) {
+    if (!this.activeInstance) return;
+    this.installingModId = mod.id;
+    try {
+      let filename = "";
+      if (mod.provider === "curseforge") {
+        filename = await invoke("install_curseforge_mod", {
+          instanceId: this.activeInstance.id,
+          modId: parseInt(mod.id, 10),
+        });
+      } else {
+        filename = await invoke("install_modrinth_mod", {
+          instanceId: this.activeInstance.id,
+          projectId: mod.id,
+        });
+      }
+      this.showToast(`Installed ${filename || mod.title}!`);
+      await this.loadInstalledMods();
+    } catch (e) {
+      this.showToast("Installation error: " + e);
+    } finally {
+      this.installingModId = "";
+    }
+  }
+
+  async uninstallCatalogMod(mod: { title: string; slug?: string }) {
     if (!this.activeInstance) return;
     const installed = this.getInstalledModFor(mod);
     try {
@@ -428,7 +515,8 @@ export class LauncherState {
           instanceId: this.activeInstance.id,
           filename: installed.file_name || installed.filename || "",
         });
-      } else if (mod.slug) {
+      }
+      if (mod.slug) {
         await invoke("uninstall_modrinth_mod", {
           instanceId: this.activeInstance.id,
           slug: mod.slug,
@@ -466,20 +554,20 @@ export class LauncherState {
     const loaderLower = this.activeInstance.mod_loader.toLowerCase();
     const isFabricOrQuilt = loaderLower.includes("fabric") || loaderLower.includes("quilt");
     const isForgeOrNeo = loaderLower.includes("forge");
-    
+
     if (loaderLower === "vanilla") {
       this.showToast("Vanilla profiles do not support mods. Create a Fabric or Forge profile.");
       return;
     }
 
     this.showToast("Installing Essential Fast Performance Pack...");
-    
+
     // Core FPS optimization mod slugs on Modrinth
-    const performanceMods = isFabricOrQuilt 
+    const performanceMods = isFabricOrQuilt
       ? ["sodium", "lithium", "ferrite-core", "entityculling"]
-      : isForgeOrNeo 
-      ? ["embeddium", "ferrite-core", "entityculling"]
-      : [];
+      : isForgeOrNeo
+        ? ["embeddium", "ferrite-core", "entityculling"]
+        : [];
 
     if (performanceMods.length === 0) {
       this.showToast("Essential FPS Pack requires a Fabric, Quilt, Forge, or NeoForge profile.");
@@ -550,16 +638,16 @@ export class LauncherState {
   async checkHardwareAndJava() {
     try {
       this.detectedJavas = await invoke("detect_java");
-    } catch (_) {}
+    } catch (_) { }
     try {
       this.detectedGpus = await invoke("detect_gpus");
-    } catch (_) {}
+    } catch (_) { }
   }
 
   async loadSettings() {
     try {
       this.settings = await invoke("get_settings");
-    } catch (_) {}
+    } catch (_) { }
   }
 
   async saveSettings() {
@@ -636,7 +724,7 @@ export class LauncherState {
 
   // --- Log & Crash Management ---
   get hasCrashDetected(): boolean {
-    return this.consoleLogs.some(l => 
+    return this.consoleLogs.some(l =>
       l.includes("CrashReport") ||
       l.includes("FATAL") ||
       l.includes("A fatal error has been detected") ||

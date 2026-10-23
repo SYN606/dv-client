@@ -81,3 +81,26 @@ export interface DownloadProgress {
 }
 
 export type GameExecutionState = "idle" | "launching" | "downloading" | "running";
+
+export interface MinecraftVersionSummary {
+  id: string;
+  version_type: string; // "release" | "snapshot" | "old_beta" | "old_alpha"
+  release_time: string;
+  is_latest_release: boolean;
+  is_latest_snapshot: boolean;
+}
+
+export type ModProvider = "modrinth" | "curseforge";
+
+export interface CatalogModItem {
+  provider: ModProvider;
+  id: string;
+  slug: string;
+  title: string;
+  description: string;
+  author: string;
+  icon_url: string | null;
+  downloads: number;
+  categories: string[];
+  website_url?: string;
+}

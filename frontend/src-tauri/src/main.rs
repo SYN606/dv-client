@@ -13,13 +13,21 @@ fn main() {
     let p_clone = log_path.clone();
     std::panic::set_hook(Box::new(move |info| {
         use std::io::Write;
-        if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&p_clone) {
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&p_clone)
+        {
             let _ = writeln!(f, "[CRITICAL PANIC] {}", info);
         }
     }));
 
     use std::io::Write;
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).truncate(true).open(&log_path) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .open(&log_path)
+    {
         let _ = writeln!(f, "=== Digital Vigital Launcher Startup ===");
         let _ = writeln!(f, "1. Process main() entered");
     }
@@ -31,7 +39,11 @@ fn main() {
         Ok(r) => r,
         Err(e) => {
             use std::io::Write;
-            if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+            if let Ok(mut f) = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&log_path)
+            {
                 let _ = writeln!(f, "[CRITICAL] Failed to build Tokio runtime: {}", e);
             }
             return;

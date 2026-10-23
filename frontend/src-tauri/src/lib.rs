@@ -107,6 +107,15 @@ pub struct DownloadProgressDto {
 // System & App Commands
 // ---------------------------------------------------------------------------
 
+#[derive(Serialize, Deserialize, Clone)]
+pub struct MinecraftVersionDto {
+    pub id: String,
+    pub version_type: String, // "release", "snapshot", "old_beta", "old_alpha"
+    pub release_time: String,
+    pub is_latest_release: bool,
+    pub is_latest_snapshot: bool,
+}
+
 #[tauri::command]
 fn get_launcher_info() -> LauncherInfo {
     LauncherInfo {
@@ -114,6 +123,62 @@ fn get_launcher_info() -> LauncherInfo {
         version: branding::APP_VERSION.to_string(),
         author: "Digital Vigital".to_string(),
         repo_url: "https://github.com/SYN606/dv-client".to_string(),
+    }
+}
+
+#[tauri::command]
+async fn get_all_minecraft_versions(
+    state: State<'_, AppState>,
+) -> Result<Vec<MinecraftVersionDto>, String> {
+    let cfg = {
+        let cm = state.config_mgr.lock().await;
+        cm.config.clone()
+    };
+
+    let meta_client = dv_launcher::minecraft::PistonMetaClient::new(
+        cfg.shared_versions_dir().join("meta_cache"),
+    );
+
+    match meta_client.get_version_manifest(false).await {
+        Ok(manifest) => {
+            let latest_rel = manifest.latest.release;
+            let latest_snap = manifest.latest.snapshot;
+            let list = manifest
+                .versions
+                .into_iter()
+                .map(|v| MinecraftVersionDto {
+                    is_latest_release: v.id == latest_rel,
+                    is_latest_snapshot: v.id == latest_snap,
+                    id: v.id,
+                    version_type: v.version_type,
+                    release_time: v.release_time,
+                })
+                .collect();
+            Ok(list)
+        }
+        Err(e) => {
+            tracing::warn!("Failed to fetch Mojang manifest: {}. Using fallback list.", e);
+            let fallback_releases = [
+                "1.21.4", "1.21.3", "1.21.2", "1.21.1", "1.21",
+                "1.20.6", "1.20.4", "1.20.2", "1.20.1", "1.20",
+                "1.19.4", "1.19.3", "1.19.2", "1.19.1", "1.19",
+                "1.18.2", "1.18.1", "1.18", "1.17.1", "1.17",
+                "1.16.5", "1.16.4", "1.16.3", "1.16.2", "1.16.1", "1.16",
+                "1.15.2", "1.14.4", "1.13.2", "1.12.2", "1.11.2", "1.10.2",
+                "1.9.4", "1.8.9", "1.7.10", "1.6.4", "1.5.2"
+            ];
+            let list = fallback_releases
+                .iter()
+                .map(|id| MinecraftVersionDto {
+                    id: id.to_string(),
+                    version_type: "release".to_string(),
+                    release_time: String::new(),
+                    is_latest_release: *id == "1.21.4",
+                    is_latest_snapshot: false,
+                })
+                .collect();
+            Ok(list)
+        }
     }
 }
 
@@ -407,10 +472,7 @@ async fn get_settings(state: State<'_, AppState>) -> Result<SettingsDto, String>
 }
 
 #[tauri::command]
-async fn save_settings(
-    settings: SettingsDto,
-    state: State<'_, AppState>,
-) -> Result<(), String> {
+async fn save_settings(settings: SettingsDto, state: State<'_, AppState>) -> Result<(), String> {
     let mut cm = state.config_mgr.lock().await;
     cm.config.default_min_memory_mb = settings.default_min_memory_mb;
     cm.config.default_max_memory_mb = settings.default_max_memory_mb;
@@ -551,10 +613,55 @@ async fn install_modrinth_mod(
 }
 
 #[tauri::command]
-async fn open_mods_folder(
+async fn search_curseforge(
+    query: Option<String>,
+    loader: Option<String>,
+    game_version: Option<String>,
+    category_id: Option<u32>,
+    sort_by: Option<String>,
+    limit: Option<u32>,
+) -> Result<Vec<dv_launcher::loaders::CurseForgeMod>, String> {
+    let client = dv_launcher::loaders::CurseForgeClient::new();
+    let q = query.unwrap_or_default();
+    let lim = limit.unwrap_or(30);
+    client
+        .search_mods(
+            &q,
+            game_version.as_deref(),
+            loader.as_deref(),
+            category_id,
+            sort_by.as_deref(),
+            lim,
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn install_curseforge_mod(
     instance_id: String,
+    mod_id: u64,
     state: State<'_, AppState>,
-) -> Result<(), String> {
+) -> Result<String, String> {
+    let mgr = state.instance_mgr.lock().await;
+    let inst = mgr
+        .instances
+        .get(&instance_id)
+        .ok_or_else(|| "Instance not found".to_string())?;
+
+    let mods_dir = inst.game_dir(&mgr.instances_dir).join("mods");
+    let mc_ver = inst.minecraft_version.clone();
+    let loader = inst.mod_loader.clone();
+
+    let client = dv_launcher::loaders::CurseForgeClient::new();
+    client
+        .install_mod(mod_id, &mc_ver, &loader, &mods_dir)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn open_mods_folder(instance_id: String, state: State<'_, AppState>) -> Result<(), String> {
     let mgr = state.instance_mgr.lock().await;
     let inst = mgr
         .instances
@@ -733,15 +840,15 @@ async fn pick_cape_file() -> Result<Option<String>, String> {
 
 #[tauri::command]
 async fn apply_skin(username: String, file_path: String) -> Result<String, String> {
-    let res = dv_launcher::skins::save_custom_skin(&username, &file_path)
-        .map_err(|e| e.to_string())?;
+    let res =
+        dv_launcher::skins::save_custom_skin(&username, &file_path).map_err(|e| e.to_string())?;
     Ok(res.to_string_lossy().to_string())
 }
 
 #[tauri::command]
 async fn apply_cape(username: String, file_path: String) -> Result<String, String> {
-    let res = dv_launcher::skins::save_custom_cape(&username, &file_path)
-        .map_err(|e| e.to_string())?;
+    let res =
+        dv_launcher::skins::save_custom_cape(&username, &file_path).map_err(|e| e.to_string())?;
     Ok(res.to_string_lossy().to_string())
 }
 
@@ -780,7 +887,9 @@ async fn launch_game(
         Some(i) => i,
         None => {
             state.is_launching.store(false, Ordering::SeqCst);
-            return Err("No profile selected. Please select or create an instance first.".to_string());
+            return Err(
+                "No profile selected. Please select or create an instance first.".to_string(),
+            );
         }
     };
 
@@ -897,7 +1006,10 @@ async fn launch_game(
         let mut a = state.auth_client.lock().await;
         match a.get_or_refresh_token(&account.id).await {
             Ok(tok) => tok,
-            Err(_) => account.access_token.clone().unwrap_or_else(|| "0".to_string()),
+            Err(_) => account
+                .access_token
+                .clone()
+                .unwrap_or_else(|| "0".to_string()),
         }
     };
 
@@ -931,7 +1043,9 @@ async fn launch_game(
     };
 
     let command_args = LaunchArgumentBuilder::build_command_args(&launch_ctx);
-    let gpu_id = config_clone.selected_gpu.unwrap_or_else(|| "auto".to_string());
+    let gpu_id = config_clone
+        .selected_gpu
+        .unwrap_or_else(|| "auto".to_string());
     GpuDetector::configure_windows_gpu_preference(&launch_ctx.java_executable, &gpu_id);
     let gpu_env = GpuDetector::get_env_vars_for_gpu(&gpu_id);
 
@@ -1013,7 +1127,10 @@ async fn get_latest_logs(
     };
 
     if let Some(inst) = inst {
-        let log_file = inst.game_dir(cfg.instances_dir()).join("logs").join("latest.log");
+        let log_file = inst
+            .game_dir(cfg.instances_dir())
+            .join("logs")
+            .join("latest.log");
         if log_file.exists() {
             if let Ok(content) = std::fs::read_to_string(&log_file) {
                 return Ok(content);
@@ -1080,7 +1197,11 @@ fn append_startup_log(step: &str) {
     let log_path = dirs::data_dir()
         .map(|d| d.join("DigitalVigital").join("startup.log"))
         .unwrap_or_else(|| std::path::PathBuf::from("dv_startup.log"));
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+    {
         let _ = writeln!(f, "[Tauri Engine] {}", step);
     }
 }
@@ -1095,11 +1216,17 @@ pub fn run() {
         Ok(c) => {
             let base = c.config.base_path().to_path_buf();
             let inst = c.config.instances_dir();
-            append_startup_log(&format!("Config loaded. Base: {:?}, Instances: {:?}", base, inst));
+            append_startup_log(&format!(
+                "Config loaded. Base: {:?}, Instances: {:?}",
+                base, inst
+            ));
             (Arc::new(Mutex::new(c)), base, inst)
         }
         Err(e) => {
-            append_startup_log(&format!("Config load error: {}. Using default fallback.", e));
+            append_startup_log(&format!(
+                "Config load error: {}. Using default fallback.",
+                e
+            ));
             let fallback_dir = dirs::data_dir()
                 .map(|d| d.join("DigitalVigital"))
                 .unwrap_or_else(std::env::temp_dir);
@@ -1120,11 +1247,17 @@ pub fn run() {
     append_startup_log("4. Initializing InstanceManager");
     let instance_mgr = match InstanceManager::new(&instances_dir) {
         Ok(i) => {
-            append_startup_log(&format!("InstanceManager initialized with {} instances", i.instances.len()));
+            append_startup_log(&format!(
+                "InstanceManager initialized with {} instances",
+                i.instances.len()
+            ));
             Arc::new(Mutex::new(i))
         }
         Err(e) => {
-            append_startup_log(&format!("InstanceManager init error: {}. Using fallback.", e));
+            append_startup_log(&format!(
+                "InstanceManager init error: {}. Using fallback.",
+                e
+            ));
             let fallback_dir = base_data_dir.join("instances");
             let _ = std::fs::create_dir_all(&fallback_dir);
             let i = InstanceManager::new(&fallback_dir).unwrap_or_else(|_| InstanceManager {
@@ -1204,6 +1337,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             get_launcher_info,
+            get_all_minecraft_versions,
             get_instances,
             select_active_instance,
             create_instance,
@@ -1229,6 +1363,8 @@ pub fn run() {
             uninstall_modrinth_mod,
             search_modrinth,
             install_modrinth_mod,
+            search_curseforge,
+            install_curseforge_mod,
             open_mods_folder,
             pick_skin_file,
             pick_cape_file,
