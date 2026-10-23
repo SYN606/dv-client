@@ -58,10 +58,17 @@ export interface LauncherSettings {
 }
 
 export interface ModItem {
-  filename: string;
-  clean_name: string;
+  file_name: string;
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  file_size_bytes: number;
+  file_size_display: string;
   is_enabled: boolean;
-  size: number;
+  icon_path: string | null;
+  filename?: string;
+  clean_name?: string;
 }
 
 export interface DownloadProgress {

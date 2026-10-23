@@ -567,6 +567,138 @@ async fn open_mods_folder(
     Ok(())
 }
 
+#[tauri::command]
+async fn import_local_mod(
+    instance_id: String,
+    state: State<'_, AppState>,
+) -> Result<Option<String>, String> {
+    let mgr = state.instance_mgr.lock().await;
+    let inst = mgr
+        .instances
+        .get(&instance_id)
+        .ok_or_else(|| "Instance not found".to_string())?;
+
+    let mods_dir = inst.game_dir(&mgr.instances_dir).join("mods");
+    let file = tokio::task::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .set_title("Select Minecraft Mod (.jar)")
+            .add_filter("Minecraft Mod Jar (*.jar)", &["jar"])
+            .pick_file()
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    if let Some(src) = file {
+        let dest = dv_launcher::instances::import_mod_file(&mods_dir, &src)
+            .map_err(|e| format!("Failed to import mod file: {}", e))?;
+        let name = dest
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_else(|| "mod.jar".to_string());
+        Ok(Some(name))
+    } else {
+        Ok(None)
+    }
+}
+
+#[tauri::command]
+async fn bulk_toggle_mods(
+    instance_id: String,
+    enable_all: bool,
+    state: State<'_, AppState>,
+) -> Result<usize, String> {
+    let mgr = state.instance_mgr.lock().await;
+    let inst = mgr
+        .instances
+        .get(&instance_id)
+        .ok_or_else(|| "Instance not found".to_string())?;
+
+    let mods_dir = inst.game_dir(&mgr.instances_dir).join("mods");
+    if !mods_dir.exists() {
+        return Ok(0);
+    }
+
+    let mut count = 0;
+    if let Ok(entries) = std::fs::read_dir(&mods_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let filename = match path.file_name().and_then(|n| n.to_str()) {
+                Some(n) => n.to_string(),
+                None => continue,
+            };
+
+            if enable_all {
+                if filename.ends_with(".jar.disabled") {
+                    let new_name = filename.trim_end_matches(".disabled");
+                    if std::fs::rename(&path, mods_dir.join(new_name)).is_ok() {
+                        count += 1;
+                    }
+                } else if filename.ends_with(".disabled") {
+                    let new_name = format!("{}.jar", filename.trim_end_matches(".disabled"));
+                    if std::fs::rename(&path, mods_dir.join(new_name)).is_ok() {
+                        count += 1;
+                    }
+                }
+            } else if filename.ends_with(".jar") {
+                let new_name = format!("{}.disabled", filename);
+                if std::fs::rename(&path, mods_dir.join(new_name)).is_ok() {
+                    count += 1;
+                }
+            }
+        }
+    }
+
+    Ok(count)
+}
+
+#[tauri::command]
+async fn uninstall_modrinth_mod(
+    instance_id: String,
+    slug: String,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    let mgr = state.instance_mgr.lock().await;
+    let inst = mgr
+        .instances
+        .get(&instance_id)
+        .ok_or_else(|| "Instance not found".to_string())?;
+
+    let mods_dir = inst.game_dir(&mgr.instances_dir).join("mods");
+    if !mods_dir.exists() {
+        return Ok(false);
+    }
+
+    let clean_slug = slug.to_lowercase().replace('-', "_");
+    let slug_dash = slug.to_lowercase().replace('_', "-");
+    let mut removed = false;
+
+    if let Ok(entries) = std::fs::read_dir(&mods_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+            let name = match path.file_name().and_then(|n| n.to_str()) {
+                Some(n) => n.to_lowercase(),
+                None => continue,
+            };
+
+            if (name.contains(&clean_slug) || name.contains(&slug_dash))
+                && (name.ends_with(".jar") || name.ends_with(".disabled"))
+            {
+                if std::fs::remove_file(entry.path()).is_ok() {
+                    removed = true;
+                }
+            }
+        }
+    }
+
+    Ok(removed)
+}
+
 // ---------------------------------------------------------------------------
 // Skins & Capes Commands
 // ---------------------------------------------------------------------------
@@ -1092,6 +1224,9 @@ pub fn run() {
             get_installed_mods,
             toggle_mod,
             delete_mod,
+            bulk_toggle_mods,
+            import_local_mod,
+            uninstall_modrinth_mod,
             search_modrinth,
             install_modrinth_mod,
             open_mods_folder,

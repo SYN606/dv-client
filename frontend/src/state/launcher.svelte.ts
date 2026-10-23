@@ -78,6 +78,9 @@ export class LauncherState {
 
   // Mods
   installedMods = $state<ModItem[]>([]);
+  modStudioSubTab = $state<"installed" | "catalog">("installed");
+  installedModsSearch = $state("");
+  installedModsFilter = $state<"all" | "enabled" | "disabled">("all");
   modrinthSearchResults = $state<ModrinthSearchResult[]>([]);
   isSearchingModrinth = $state(false);
   installingModId = $state("");
@@ -282,24 +285,43 @@ export class LauncherState {
   async loadInstalledMods() {
     if (!this.activeInstance) return;
     try {
-      this.installedMods = await invoke("get_installed_mods", { instanceId: this.activeInstance.id });
+      const rawMods: ModItem[] = await invoke("get_installed_mods", { instanceId: this.activeInstance.id });
+      this.installedMods = (rawMods || []).map(m => ({
+        ...m,
+        file_name: m.file_name || m.filename || "mod.jar",
+        name: m.name || m.clean_name || m.file_name || "Unknown Mod",
+        file_size_display: m.file_size_display || `${((m.file_size_bytes || 0) / 1024).toFixed(1)} KB`,
+      }));
     } catch (e) {
       this.installedMods = [];
     }
   }
 
-  isModInstalled(mod: ModrinthSearchResult): boolean {
-    if (!this.installedMods.length) return false;
-    const modTitle = mod.title.toLowerCase().replace(/[^a-z0-9]/g, "");
+  getInstalledModFor(mod: ModrinthSearchResult): ModItem | null {
+    if (!this.installedMods || !this.installedMods.length) return null;
+    const modTitle = (mod.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
     const modSlug = (mod.slug || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    return this.installedMods.some(m => {
-      const cleanInstalled = m.clean_name.toLowerCase().replace(/[^a-z0-9]/g, "");
-      const fileInstalled = m.filename.toLowerCase().replace(/[^a-z0-9]/g, "");
-      return (
-        (modTitle.length > 2 && cleanInstalled.includes(modTitle)) ||
-        (modSlug.length > 2 && (cleanInstalled.includes(modSlug) || fileInstalled.includes(modSlug)))
-      );
-    });
+
+    return this.installedMods.find(m => {
+      const mName = (m.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      const mFile = (m.file_name || m.filename || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+
+      // 1. Direct title/name match
+      if (modTitle && mName && (mName === modTitle || mName.includes(modTitle) || modTitle.includes(mName))) {
+        return true;
+      }
+      // 2. Slug match against filename or mod name
+      if (modSlug && modSlug.length >= 3) {
+        if (mName.includes(modSlug) || mFile.includes(modSlug)) {
+          return true;
+        }
+      }
+      return false;
+    }) || null;
+  }
+
+  isModInstalled(mod: ModrinthSearchResult): boolean {
+    return this.getInstalledModFor(mod) !== null;
   }
 
   async fetchModsForSelectedProfile(category?: string, sortBy?: string, query?: string) {
@@ -321,7 +343,7 @@ export class LauncherState {
         gameVersion: this.activeInstance.mc_version,
         category: catParam,
         sortBy: this.modrinthSortBy,
-        limit: 30,
+        limit: 36,
       });
     } catch (e) {
       console.warn("Failed to fetch mods from Modrinth:", e);
@@ -337,15 +359,31 @@ export class LauncherState {
 
   async toggleMod(mod: ModItem) {
     if (!this.activeInstance) return;
+    const targetFile = mod.file_name || mod.filename;
+    if (!targetFile) return;
     try {
       await invoke("toggle_mod", {
         instanceId: this.activeInstance.id,
-        filename: mod.filename,
+        filename: targetFile,
         enabled: !mod.is_enabled,
       });
       await this.loadInstalledMods();
     } catch (e) {
       this.showToast("Failed to toggle mod: " + e);
+    }
+  }
+
+  async bulkToggleMods(enableAll: boolean) {
+    if (!this.activeInstance) return;
+    try {
+      const count: number = await invoke("bulk_toggle_mods", {
+        instanceId: this.activeInstance.id,
+        enableAll,
+      });
+      this.showToast(`${enableAll ? "Enabled" : "Disabled"} ${count} mods.`);
+      await this.loadInstalledMods();
+    } catch (e) {
+      this.showToast("Failed to bulk update mods: " + e);
     }
   }
 
@@ -360,6 +398,46 @@ export class LauncherState {
       await this.loadInstalledMods();
     } catch (e) {
       this.showToast("Failed to delete mod: " + e);
+    }
+  }
+
+  async importLocalMod() {
+    if (!this.activeInstance) {
+      this.showToast("Select a profile first.");
+      return;
+    }
+    try {
+      const imported: string | null = await invoke("import_local_mod", {
+        instanceId: this.activeInstance.id,
+      });
+      if (imported) {
+        this.showToast(`Imported ${imported} into profile!`);
+        await this.loadInstalledMods();
+      }
+    } catch (e) {
+      this.showToast("Import failed: " + e);
+    }
+  }
+
+  async uninstallCatalogMod(mod: ModrinthSearchResult) {
+    if (!this.activeInstance) return;
+    const installed = this.getInstalledModFor(mod);
+    try {
+      if (installed) {
+        await invoke("delete_mod", {
+          instanceId: this.activeInstance.id,
+          filename: installed.file_name || installed.filename || "",
+        });
+      } else if (mod.slug) {
+        await invoke("uninstall_modrinth_mod", {
+          instanceId: this.activeInstance.id,
+          slug: mod.slug,
+        });
+      }
+      this.showToast(`Uninstalled ${mod.title}!`);
+      await this.loadInstalledMods();
+    } catch (e) {
+      this.showToast("Uninstall error: " + e);
     }
   }
 
@@ -385,20 +463,26 @@ export class LauncherState {
       this.showToast("Select a profile first.");
       return;
     }
-    const isFabric = this.activeInstance.mod_loader.toLowerCase().includes("fabric");
-    const isForge = this.activeInstance.mod_loader.toLowerCase().includes("forge");
+    const loaderLower = this.activeInstance.mod_loader.toLowerCase();
+    const isFabricOrQuilt = loaderLower.includes("fabric") || loaderLower.includes("quilt");
+    const isForgeOrNeo = loaderLower.includes("forge");
     
+    if (loaderLower === "vanilla") {
+      this.showToast("Vanilla profiles do not support mods. Create a Fabric or Forge profile.");
+      return;
+    }
+
     this.showToast("Installing Essential Fast Performance Pack...");
     
     // Core FPS optimization mod slugs on Modrinth
-    const performanceMods = isFabric 
+    const performanceMods = isFabricOrQuilt 
       ? ["sodium", "lithium", "ferrite-core", "entityculling"]
-      : isForge 
+      : isForgeOrNeo 
       ? ["embeddium", "ferrite-core", "entityculling"]
       : [];
 
     if (performanceMods.length === 0) {
-      this.showToast("Essential FPS Pack requires a Fabric or Forge/NeoForge profile.");
+      this.showToast("Essential FPS Pack requires a Fabric, Quilt, Forge, or NeoForge profile.");
       return;
     }
 
