@@ -33,3 +33,4 @@ desktop.ini
 /dist/
 packaging/appimagetool
 *.exe
+static-websites/

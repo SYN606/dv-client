@@ -16,7 +16,7 @@ A modern, ultra-fast Minecraft launcher designed for gamers who care about speed
 ## Why Choose DV Launcher?
 
 ### Blazing Fast & Lightweight
-No Electron, no hidden browser engines eating your RAM. DV is a native desktop app that opens instantly, uses virtually zero background memory, and leaves all your PC's power where it belongs: **inside Minecraft**.
+Powered by Rust, Tauri v2, and Svelte for an ultra-low memory footprint, instant startup, and buttery-smooth responsive UI. DV uses virtually zero background memory and leaves all your PC's power where it belongs: **inside Minecraft**.
 
 ### All Versions & Loaders in One Place
 Switch seamlessly between any version of Minecraft:
@@ -50,13 +50,20 @@ Make sure you have a modern **Java** installed (Java 21 is recommended for lates
 
 ### 2. Run the Launcher
 
-#### On Linux / macOS / Windows (From Source)
+#### From Pre-built Executable
+Simply download and run `dv-launcher-app.exe` (or `DigitalVigital-Setup-1.2.1.exe` installer).
+
+#### From Source
 ```bash
 # Clone the repository
 git clone https://github.com/SYN606/dv-client
 cd dv-client
 
-# Launch the app
+# Build frontend & run desktop app
+cd frontend
+bun install
+bun run build
+cd src-tauri
 cargo run --release
 ```
 

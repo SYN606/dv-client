@@ -42,7 +42,7 @@ if ($MakensisPath) {
     Write-Host "[3/3] Windows Installer successfully created at dist\DigitalVigital-Setup-1.2.1.exe!" -ForegroundColor Green
 
     Write-Host "[Bonus] Generating portable ZIP archive..." -ForegroundColor Cyan
-    Compress-Archive -Path "$ProjectRoot\target\release\dv-launcher.exe", "$ProjectRoot\assets\logo.png", "$ProjectRoot\assets\logo.ico", "$ProjectRoot\README.md" -DestinationPath "$ProjectRoot\dist\DigitalVigital-v1.2.1-windows-x64-portable.zip" -Force
+    Compress-Archive -Path "$ProjectRoot\dv-launcher-app.exe", "$ProjectRoot\assets\logo.png", "$ProjectRoot\assets\logo.ico", "$ProjectRoot\README.md" -DestinationPath "$ProjectRoot\dist\DigitalVigital-v1.2.1-windows-x64-portable.zip" -Force
     Write-Host "Portable ZIP created at dist\DigitalVigital-v1.2.1-windows-x64-portable.zip!" -ForegroundColor Green
     exit 0
 }
@@ -69,7 +69,7 @@ if ($InnoPath) {
     Write-Host "[3/3] Windows Installer successfully created at dist\DigitalVigital-Setup-1.2.1.exe!" -ForegroundColor Green
 
     Write-Host "[Bonus] Generating portable ZIP archive..." -ForegroundColor Cyan
-    Compress-Archive -Path "$ProjectRoot\target\release\dv-launcher.exe", "$ProjectRoot\assets\logo.png", "$ProjectRoot\assets\logo.ico", "$ProjectRoot\README.md" -DestinationPath "$ProjectRoot\dist\DigitalVigital-v1.2.1-windows-x64-portable.zip" -Force
+    Compress-Archive -Path "$ProjectRoot\dv-launcher-app.exe", "$ProjectRoot\assets\logo.png", "$ProjectRoot\assets\logo.ico", "$ProjectRoot\README.md" -DestinationPath "$ProjectRoot\dist\DigitalVigital-v1.2.1-windows-x64-portable.zip" -Force
     Write-Host "Portable ZIP created at dist\DigitalVigital-v1.2.1-windows-x64-portable.zip!" -ForegroundColor Green
     exit 0
 }

@@ -438,10 +438,8 @@ pub fn sync_instance_mods<P: AsRef<Path>, Q: AsRef<Path>>(inst_dir: P, game_dir:
     if let Ok(entries) = fs::read_dir(&mods1) {
         for entry in entries.flatten() {
             let target = mods2.join(entry.file_name());
-            if !target.exists() && entry.path().is_file() {
-                if fs::hard_link(entry.path(), &target).is_err() {
-                    let _ = fs::copy(entry.path(), target);
-                }
+            if !target.exists() && entry.path().is_file() && fs::hard_link(entry.path(), &target).is_err() {
+                let _ = fs::copy(entry.path(), target);
             }
         }
     }
@@ -449,10 +447,8 @@ pub fn sync_instance_mods<P: AsRef<Path>, Q: AsRef<Path>>(inst_dir: P, game_dir:
     if let Ok(entries) = fs::read_dir(&mods2) {
         for entry in entries.flatten() {
             let target = mods1.join(entry.file_name());
-            if !target.exists() && entry.path().is_file() {
-                if fs::hard_link(entry.path(), &target).is_err() {
-                    let _ = fs::copy(entry.path(), target);
-                }
+            if !target.exists() && entry.path().is_file() && fs::hard_link(entry.path(), &target).is_err() {
+                let _ = fs::copy(entry.path(), target);
             }
         }
     }

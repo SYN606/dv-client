@@ -12,7 +12,7 @@ SetCompressor /SOLID lzma
 !define PRODUCT_VERSION "1.2.1"
 !define PRODUCT_PUBLISHER "Digital Vigital"
 !define PRODUCT_WEB_SITE "https://digitalvigital.fun"
-!define PRODUCT_EXE "dv-launcher.exe"
+!define PRODUCT_EXE "dv-launcher-app.exe"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 
 OutFile "..\..\dist\DigitalVigital-Setup-1.2.1.exe"
@@ -53,7 +53,7 @@ InstallDirRegKey HKLM "${PRODUCT_UNINST_KEY}" "InstallLocation"
 
 ; --- Welcome Page ---
 !define MUI_WELCOMEPAGE_TITLE "Welcome to Digital Vigital Launcher Setup"
-!define MUI_WELCOMEPAGE_TEXT "Digital Vigital is a high-performance, privacy-first Minecraft launcher powered by an independent Rust engine and native UI.$\r$\n$\r$\nKey Advantages:$\r$\n- Zero Lag: Lightweight native binary (No Electron / No Webview)$\r$\n- Smart GPU: Automatically routes to high-performance NVIDIA / AMD GPU$\r$\n- Mod Manager: 1-Click mod installs directly via Modrinth$\r$\n- Hardware Vault: Microsoft OAuth tokens secured in Windows Credential Manager$\r$\n$\r$\nClick Next to continue."
+!define MUI_WELCOMEPAGE_TEXT "Digital Vigital is a high-performance, privacy-first Minecraft launcher powered by an independent Rust engine and modern Tauri v2 + Svelte desktop UI.$\r$\n$\r$\nKey Advantages:$\r$\n- Maximum Performance: High-speed async Rust engine with responsive modern UI$\r$\n- Smart GPU: Automatically routes to high-performance NVIDIA / AMD GPU$\r$\n- Mod Marketplace: 1-Click mod installs & compatibility filtering via Modrinth$\r$\n- Hardware Vault: Microsoft OAuth tokens secured in Windows Credential Manager$\r$\n$\r$\nClick Next to continue."
 !insertmacro MUI_PAGE_WELCOME
 
 ; --- License Page (Rendered via clean RTF) ---
@@ -102,7 +102,7 @@ Section "MainSection" SEC01
     SetOverwrite on
 
     ; Application binary, assets & documentation
-    File "/oname=${PRODUCT_EXE}" "..\..\target\release\${PRODUCT_EXE}"
+    File "/oname=${PRODUCT_EXE}" "..\..\dv-launcher-app.exe"
     File "..\..\assets\logo.png"
     File "..\..\assets\logo.ico"
     File "..\..\README.md"

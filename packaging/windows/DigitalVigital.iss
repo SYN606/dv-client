@@ -31,15 +31,15 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
-Source: "..\..\target\release\dv-launcher.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\dv-launcher-app.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\assets\logo.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\assets\logo.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{autoprograms}\Digital Vigital Launcher\Digital Vigital Launcher"; Filename: "{app}\dv-launcher.exe"; IconFilename: "{app}\logo.ico"
-Name: "{autodesktop}\Digital Vigital Launcher"; Filename: "{app}\dv-launcher.exe"; IconFilename: "{app}\logo.ico"; Tasks: desktopicon
+Name: "{autoprograms}\Digital Vigital Launcher\Digital Vigital Launcher"; Filename: "{app}\dv-launcher-app.exe"; IconFilename: "{app}\logo.ico"
+Name: "{autodesktop}\Digital Vigital Launcher"; Filename: "{app}\dv-launcher-app.exe"; IconFilename: "{app}\logo.ico"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\dv-launcher.exe"; Description: "{cm:LaunchProgram,Digital Vigital Launcher}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\dv-launcher-app.exe"; Description: "{cm:LaunchProgram,Digital Vigital Launcher}"; Flags: nowait postinstall skipifsilent

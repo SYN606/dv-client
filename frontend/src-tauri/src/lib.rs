@@ -142,7 +142,7 @@ async fn get_instances(state: State<'_, AppState>) -> Result<Vec<InstanceDto>, S
         })
         .collect();
 
-    list.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    list.sort_by_key(|a| a.name.to_lowercase());
     Ok(list)
 }
 
@@ -219,7 +219,7 @@ async fn get_accounts(state: State<'_, AppState>) -> Result<Vec<AccountDto>, Str
         })
         .collect();
 
-    list.sort_by(|a, b| b.last_login.cmp(&a.last_login));
+    list.sort_by_key(|a| std::cmp::Reverse(a.last_login));
     Ok(list)
 }
 

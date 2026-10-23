@@ -35,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Data Base Path: {}", config_mgr.config.base_path().display());
     println!("  Instances Dir:  {}", config_mgr.config.instances_dir().display());
 
-    let inst_mgr = match InstanceManager::new(&config_mgr.config.instances_dir()) {
+    let inst_mgr = match InstanceManager::new(config_mgr.config.instances_dir()) {
         Ok(m) => m,
         Err(e) => {
             eprintln!("Error loading instances: {}", e);
