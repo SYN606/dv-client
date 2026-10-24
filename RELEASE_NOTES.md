@@ -31,8 +31,6 @@
   - **Dynamic Physics & Poses**: Switch between **Walk**, **Run**, **Fly**, and **Idle** animations with a **Play/Pause** toggle and variable animation speed.
   - **Arm Thickness Rigs**: Toggle between **Classic (4px)** and **Slim (3px / Alex)** models with live texture re-mapping.
   - **Cape Visibility**: On-stage toggle to preview your character with or without equipped capes.
-- **Curated Skin Presets**:
-  - 1-Click equip for **Classic Steve**, **Cyber DV Agent** (Digital Vigital Elite), and **Ender Void Robe** (Voidwalker Series).
 - **Exclusive Capes Collection**:
   - Equippable custom cosmetics with rarity badges:
     - **DV Crimson & Gold** (Official Digital Vigital Velvet & Gold Insignia)
@@ -96,10 +94,10 @@
 
 ## Verified SHA-256 Checksums (v1.0.0)
 ```text
-9ef1785633d6277502ddc8e9d76076c436e66e43775e0432a439d7217c5e5c56  DigitalVigital-Setup-1.0.0.exe
-a447418dd1d025060acb56289d4b294f172c6a598e47bfe606a87d512dbe6a33  DigitalVigital-v1.0.0-windows-x64-portable.zip
-dcc6e49e2544ef82db4a133a43fc8cb67bbf5fba2fdfbcb7014d413ea653ef23  DigitalVigitalLauncher.exe
-dcc6e49e2544ef82db4a133a43fc8cb67bbf5fba2fdfbcb7014d413ea653ef23  dv-launcher-app.exe
+654a7740ace6e2b84362c03ca8ad0a30580eb4ac93caae382a018f09de3dd669  DigitalVigital-Setup-1.0.0.exe
+095a1fc4506466cc772c44fe6e7a19af628a55377cab941b648d29440a2f14fa  DigitalVigital-v1.0.0-windows-x64-portable.zip
+5937d640ac762cb234d93bbc529e5c9cfd7c2b18bfed886f01e5a1cea152a3c7  DigitalVigitalLauncher.exe
+5937d640ac762cb234d93bbc529e5c9cfd7c2b18bfed886f01e5a1cea152a3c7  dv-launcher-app.exe
 ```
 
 ---

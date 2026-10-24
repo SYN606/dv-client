@@ -3,7 +3,6 @@
   import { launcher } from "../../state/launcher.svelte";
   import * as skinview3d from "skinview3d";
   import {
-    SKIN_PRESETS,
     CAPE_PRESETS,
     type SkinModelType,
     type SkinAnimationType,
@@ -34,7 +33,7 @@
 
   let canvasEl: HTMLCanvasElement | null = $state(null);
   let viewer: skinview3d.SkinViewer | null = $state(null);
-  let activeSubTab = $state<"studio" | "skins" | "capes" | "stealer">("studio");
+  let activeSubTab = $state<"studio" | "capes" | "stealer">("studio");
 
   let animationMode = $state<SkinAnimationType>("walk");
   let animationSpeed = $state(0.8);
@@ -270,17 +269,6 @@
     >
       <Compass class="w-3.5 h-3.5" />
       <span>Studio & 3D Stage</span>
-    </button>
-
-    <button
-      type="button"
-      onclick={() => (activeSubTab = "skins")}
-      class="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer {activeSubTab === 'skins'
-        ? 'bg-red-600 text-white shadow-lg shadow-red-600/30'
-        : 'bg-white/4 hover:bg-white/8 text-neutral-400 hover:text-white border border-white/6'}"
-    >
-      <Palette class="w-3.5 h-3.5" />
-      <span>Skin Presets</span>
     </button>
 
     <button
@@ -620,49 +608,7 @@
           </div>
         </div>
 
-      <!-- SUB-TAB 2: SKIN PRESETS -->
-      {:else if activeSubTab === "skins"}
-        <div class="p-6 rounded-2xl bg-[#0e1017]/90 border border-white/8 space-y-4">
-          <div>
-            <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-              <Palette class="w-4 h-4 text-red-400" />
-              <span>Curated Skin Presets</span>
-            </h3>
-            <p class="text-xs text-neutral-400 mt-0.5">
-              Select any pre-configured high-res skin to apply to your current profile in 1 click.
-            </p>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {#each SKIN_PRESETS as preset}
-              <div class="p-5 rounded-2xl bg-white/2 border border-white/8 hover:border-white/16 transition-all flex flex-col justify-between space-y-4">
-                <div>
-                  <div class="flex items-center justify-between mb-2">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-gradient-to-r {preset.color} border">
-                      {preset.tag}
-                    </span>
-                    <span class="text-[10px] text-neutral-400 font-mono capitalize">{preset.model}</span>
-                  </div>
-                  <h4 class="text-base font-bold text-white">{preset.name}</h4>
-                </div>
-
-                <button
-                  type="button"
-                  onclick={() => {
-                    setModelType(preset.model);
-                    launcher.applySkinBase64(preset.dataUrl);
-                  }}
-                  class="w-full py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-red-600/30"
-                >
-                  <Check class="w-3.5 h-3.5" />
-                  <span>Equip Skin</span>
-                </button>
-              </div>
-            {/each}
-          </div>
-        </div>
-
-      <!-- SUB-TAB 3: CAPES COLLECTION -->
+      <!-- SUB-TAB 2: CAPES COLLECTION -->
       {:else if activeSubTab === "capes"}
         <div class="p-6 rounded-2xl bg-[#0e1017]/90 border border-white/8 space-y-4">
           <div>
