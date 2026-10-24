@@ -35,7 +35,7 @@ export interface ModrinthSearchResult {
 
 export class LauncherState {
   activeTab = $state<Tab>("play");
-  launcherInfo = $state<LauncherInfo>({ name: "Digital Vigital", version: "1.2.1", author: "Digital Vigital", repo_url: "" });
+  launcherInfo = $state<LauncherInfo>({ name: "Digital Vigital", version: "3.0.0", author: "Digital Vigital", repo_url: "" });
 
   // Profiles
   instances = $state<Instance[]>([]);
@@ -174,7 +174,7 @@ export class LauncherState {
           this.gameStatus = "idle";
           this.launchStatusText = "Game process closed.";
         } else if (st === "crashed") {
-          this.gameStatus = "idle";
+          this.gameStatus = "crashed";
           this.launchStatusText = "Game crashed. Check Live Console.";
           this.showToast("Minecraft exited unexpectedly.");
         }

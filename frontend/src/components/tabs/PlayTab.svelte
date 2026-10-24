@@ -245,6 +245,9 @@
           {:else if launcher.gameStatus === "launching" || launcher.gameStatus === "downloading"}
             <span class="w-2.5 h-2.5 rounded-full bg-amber-400 animate-spin"
             ></span>
+          {:else if launcher.gameStatus === "crashed"}
+            <span class="w-2.5 h-2.5 rounded-full bg-rose-500 animate-pulse"
+            ></span>
           {:else}
             <span class="w-2.5 h-2.5 rounded-full bg-neutral-600"></span>
           {/if}

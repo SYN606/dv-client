@@ -19,13 +19,16 @@
     <!-- Brand Crest Header -->
     <div class="flex items-center gap-3 px-2 pt-2">
       <div
-        class="relative w-10 h-10 rounded-2xl bg-gradient-to-br from-red-500 via-rose-600 to-red-700 flex items-center justify-center shadow-lg shadow-red-500/25 group"
+        class="relative w-10 h-10 rounded-2xl overflow-hidden bg-black/40 border border-white/10 flex items-center justify-center shadow-lg shadow-red-500/15 group shrink-0"
       >
-        <div class="font-black text-lg tracking-tight text-white drop-shadow">
-          DV
-        </div>
+        <img
+          src="/64x64.png"
+          alt="Digital Vigital Logo"
+          class="w-full h-full object-contain p-1 group-hover:scale-105 transition-transform"
+        />
         <span
-          class="absolute -bottom-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#0a0c12]"
+          class="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-[#0a0c12]"
+          title="Online / Ready"
         ></span>
       </div>
       <div>

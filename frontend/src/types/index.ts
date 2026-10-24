@@ -80,7 +80,7 @@ export interface DownloadProgress {
   total_bytes?: number;
 }
 
-export type GameExecutionState = "idle" | "launching" | "downloading" | "running";
+export type GameExecutionState = "idle" | "launching" | "downloading" | "running" | "crashed";
 
 export interface MinecraftVersionSummary {
   id: string;

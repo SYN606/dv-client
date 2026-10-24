@@ -9,24 +9,24 @@ SetCompressor /SOLID lzma
 
 !define PRODUCT_NAME "Digital Vigital Launcher"
 !define PRODUCT_SHORT_NAME "Digital Vigital"
-!define PRODUCT_VERSION "1.2.1"
+!define PRODUCT_VERSION "3.0.0"
 !define PRODUCT_PUBLISHER "Digital Vigital"
 !define PRODUCT_WEB_SITE "https://digitalvigital.fun"
 !define PRODUCT_EXE "dv-launcher-app.exe"
 !define PRODUCT_UNINST_KEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\${PRODUCT_NAME}"
 
-OutFile "..\..\dist\DigitalVigital-Setup-1.2.1.exe"
+OutFile "..\..\dist\DigitalVigital-Setup-3.0.0.exe"
 BrandingText "Digital Vigital Launcher - High-Performance Minecraft Client"
 
 ; Version Information for Windows Explorer & Properties Dialog
-VIProductVersion "1.2.1.0"
+VIProductVersion "3.0.0.0"
 VIAddVersionKey "ProductName" "Digital Vigital Launcher Setup"
 VIAddVersionKey "Comments" "High-performance, privacy-first Minecraft launcher"
 VIAddVersionKey "CompanyName" "Digital Vigital"
 VIAddVersionKey "LegalCopyright" "Copyright (c) 2026 Digital Vigital"
 VIAddVersionKey "FileDescription" "Digital Vigital Launcher Setup"
-VIAddVersionKey "FileVersion" "1.2.1.0"
-VIAddVersionKey "ProductVersion" "1.2.1"
+VIAddVersionKey "FileVersion" "3.0.0.0"
+VIAddVersionKey "ProductVersion" "3.0.0"
 
 ; Use Highest available execution level (allows seamless install for standard & admin users)
 RequestExecutionLevel admin

@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "Digital Vigital Launcher",
-  "version": "1.2.1",
+  "version": "3.0.0",
   "identifier": "fun.digitalvigital.launcher",
   "build": {
     "frontendDist": "../dist",
