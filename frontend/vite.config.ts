@@ -6,6 +6,7 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [tailwindcss(), svelte()],
   clearScreen: false,
+  publicDir: '../assets',
   server: {
     port: 1420,
     strictPort: true,
