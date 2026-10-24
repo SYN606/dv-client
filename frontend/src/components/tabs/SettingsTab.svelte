@@ -10,6 +10,9 @@
     Check,
     FolderOpen,
     Radio,
+    Sparkles,
+    RefreshCw,
+    FileText,
   } from "lucide-svelte";
 
   let savedSuccess = $state(false);
@@ -403,5 +406,93 @@
         class="w-5 h-5 accent-red-500 rounded cursor-pointer"
       />
     </div>
+  </div>
+
+  <!-- Software & Launcher Updates Section -->
+  <div
+    class="p-6 rounded-2xl bg-[#0e1017] border border-white/8 space-y-4 shadow-xl"
+  >
+    <div
+      class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-white/6"
+    >
+      <div class="flex items-center gap-3">
+        <div
+          class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/15 to-teal-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0"
+        >
+          <Sparkles class="w-5 h-5" />
+        </div>
+        <div>
+          <h3
+            class="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2"
+          >
+            <span>Software & Updates</span>
+            {#if launcher.updateInfo?.has_update}
+              <span
+                class="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase"
+              >
+                Update Available
+              </span>
+            {:else}
+              <span
+                class="px-2 py-0.5 rounded-full bg-white/5 text-neutral-400 text-[10px] font-bold uppercase"
+              >
+                Up to Date
+              </span>
+            {/if}
+          </h3>
+          <p class="text-xs text-neutral-400 mt-0.5">
+            Digital Vigital Launcher v{launcher.launcherInfo.version} • Automated GitHub Release Tracking
+          </p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-2 shrink-0">
+        <button
+          onclick={() => launcher.checkForUpdates(true)}
+          disabled={launcher.isCheckingUpdates}
+          class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-200 hover:text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+        >
+          <RefreshCw
+            class="w-3.5 h-3.5 {launcher.isCheckingUpdates
+              ? 'animate-spin text-emerald-400'
+              : ''}"
+          />
+          <span>{launcher.isCheckingUpdates ? "Checking..." : "Check for Updates"}</span>
+        </button>
+
+        {#if launcher.updateInfo?.has_update}
+          <button
+            onclick={() => launcher.openReleaseUrl()}
+            class="px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-lg shadow-emerald-600/30"
+          >
+            <Download class="w-3.5 h-3.5" />
+            <span>Download {launcher.updateInfo.latest_version}</span>
+          </button>
+        {/if}
+      </div>
+    </div>
+
+    {#if launcher.updateInfo?.has_update}
+      <div
+        class="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
+      >
+        <div>
+          <div class="text-xs font-bold text-emerald-300">
+            Version {launcher.updateInfo.latest_version} is ready to install!
+          </div>
+          <div class="text-[11px] text-neutral-300 mt-0.5">
+            Click Download Update to get the latest executable installer or portable archive from GitHub.
+          </div>
+        </div>
+
+        <button
+          onclick={() => (launcher.showUpdateModal = true)}
+          class="px-3 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-200 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
+        >
+          <FileText class="w-3.5 h-3.5" />
+          <span>View Release Notes</span>
+        </button>
+      </div>
+    {/if}
   </div>
 </div>

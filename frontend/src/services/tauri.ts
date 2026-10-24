@@ -14,6 +14,7 @@ import type {
   JavaInstallation,
   GpuDevice,
   PlayerSkinPayload,
+  UpdateCheckResult,
 } from "../types";
 
 export const TauriService = {
@@ -220,5 +221,13 @@ export const TauriService = {
 
   openFolder(path: string): Promise<void> {
     return invoke("open_folder", { path });
+  },
+
+  checkForUpdates(): Promise<UpdateCheckResult> {
+    return invoke("check_for_updates");
+  },
+
+  openUrl(url: string): Promise<void> {
+    return invoke("open_url", { url });
   },
 };

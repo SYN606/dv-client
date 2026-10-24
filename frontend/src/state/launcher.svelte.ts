@@ -16,7 +16,8 @@ import type {
   MinecraftVersionSummary,
   ModProvider,
   CatalogModItem,
-  PlayerSkinPayload
+  PlayerSkinPayload,
+  UpdateCheckResult,
 } from "../types";
 
 export interface ModrinthSearchResult {
@@ -60,6 +61,12 @@ export class LauncherState {
   logLevelFilter = $state<"ALL" | "INFO" | "WARN" | "ERROR">("ALL");
   isReportingCrash = $state(false);
   crashReportSuccess = $state(false);
+
+  // Software Updates
+  updateInfo = $state<UpdateCheckResult | null>(null);
+  isCheckingUpdates = $state(false);
+  showUpdateModal = $state(false);
+  dismissedUpdateBanner = $state(false);
 
   // Hardware & Java state
   detectedJavas = $state<JavaInstallation[]>([]);
@@ -132,6 +139,9 @@ export class LauncherState {
     await this.loadSettings();
     await this.loadMinecraftVersions();
     await this.loadPlayerSkin();
+
+    // Check for launcher updates in background
+    this.checkForUpdates(false).catch(() => {});
 
     // Setup Tauri real-time event subscriptions
     try {
@@ -894,6 +904,43 @@ export class LauncherState {
       return false;
     } finally {
       this.isReportingCrash = false;
+    }
+  }
+
+  // --- Software Updates ---
+  async checkForUpdates(userInitiated = false): Promise<void> {
+    if (this.isCheckingUpdates) return;
+    this.isCheckingUpdates = true;
+    try {
+      const res: UpdateCheckResult = await TauriService.checkForUpdates();
+      this.updateInfo = res;
+      if (res.has_update) {
+        if (userInitiated) {
+          this.showUpdateModal = true;
+          this.showToast(`New update available: ${res.latest_version}!`);
+        }
+      } else if (userInitiated) {
+        this.showToast(`You are running the latest version (v${res.current_version}).`);
+      }
+    } catch (e: any) {
+      if (userInitiated) {
+        this.showToast(`Failed to check for updates: ${e?.message || e}`);
+      }
+      console.warn("Update check failed:", e);
+    } finally {
+      this.isCheckingUpdates = false;
+    }
+  }
+
+  async openReleaseUrl(): Promise<void> {
+    const url =
+      this.updateInfo?.download_url ||
+      this.updateInfo?.html_url ||
+      "https://github.com/SYN606/dv-client/releases";
+    try {
+      await TauriService.openUrl(url);
+    } catch (e) {
+      this.showToast("Failed to open update URL: " + e);
     }
   }
 }

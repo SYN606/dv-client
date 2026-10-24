@@ -17,6 +17,7 @@
   // Modals & Overlays
   import AccountModal from "./components/modals/AccountModal.svelte";
   import CreateProfileModal from "./components/modals/CreateProfileModal.svelte";
+  import UpdateModal from "./components/modals/UpdateModal.svelte";
   import Toast from "./components/common/Toast.svelte";
 
   onMount(async () => {
@@ -58,5 +59,6 @@
   <!-- Global Modals & Notifications -->
   <AccountModal />
   <CreateProfileModal />
+  <UpdateModal />
   <Toast />
 </div>

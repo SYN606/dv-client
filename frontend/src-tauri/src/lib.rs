@@ -177,6 +177,8 @@ pub fn run() {
             get_settings,
             save_settings,
             open_folder,
+            open_url,
+            check_for_updates,
             get_installed_mods,
             toggle_mod,
             delete_mod,

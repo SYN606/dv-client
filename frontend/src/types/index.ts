@@ -109,3 +109,14 @@ export interface PlayerSkinPayload {
   skin_data_url: string;
   cape_data_url: string | null;
 }
+
+export interface UpdateCheckResult {
+  has_update: boolean;
+  current_version: string;
+  latest_version: string;
+  release_name: string;
+  release_notes: string;
+  published_at: string | null;
+  html_url: string;
+  download_url: string | null;
+}
