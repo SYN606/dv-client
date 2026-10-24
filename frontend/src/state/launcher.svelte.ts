@@ -844,6 +844,26 @@ export class LauncherState {
     }
   }
 
+  async selectJava(path: string | null) {
+    this.settings.custom_java_path = path;
+    await this.saveSettings();
+    if (path) {
+      const found = this.detectedJavas.find((j) => j.path === path);
+      this.showToast(`Active Java set to: ${found?.display_name || path}`);
+    } else {
+      this.showToast("Java runtime set to Auto-Detect (Smart Version Matching).");
+    }
+  }
+
+  async scanForJava() {
+    try {
+      this.detectedJavas = await invoke("detect_java");
+      this.showToast(`Scanned system: ${this.detectedJavas.length} Java runtimes found.`);
+    } catch (e: any) {
+      this.showToast("Failed to scan Java: " + e);
+    }
+  }
+
   async pickCustomJava() {
     try {
       const res: JavaInstallation | null = await invoke("pick_custom_java");

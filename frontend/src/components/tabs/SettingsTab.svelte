@@ -13,6 +13,7 @@
     Radio,
     Sparkles,
     RefreshCw,
+    RotateCcw,
     FileText,
   } from "lucide-svelte";
 
@@ -170,127 +171,291 @@
     </div>
   </div>
 
-  <!-- Multi-Java Runtime Suite (8, 17, 21) -->
-  <div class="p-6 rounded-2xl bg-[#0e1017]/90 border border-white/8 space-y-5">
-    <div
-      class="flex flex-col md:flex-row md:items-center justify-between gap-2"
-    >
-      <div>
-        <h3
-          class="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2"
-        >
-          <Coffee class="w-4 h-4 text-amber-400" />
-          <span>Multi-Version Java Runtimes (Temurin OpenJDK)</span>
-        </h3>
-        <p class="text-xs text-neutral-300 mt-1">
-          Minecraft 1.8 - 1.16 requires Java 8; 1.17 requires Java 17; 1.20.5+
-          requires Java 21.
-        </p>
-      </div>
-
-      <button
-        onclick={() => launcher.pickCustomJava()}
-        class="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-200 hover:text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-2"
-      >
-        <FolderOpen class="w-4 h-4" />
-        <span>Custom Java...</span>
-      </button>
-    </div>
-
-    <!-- 1-Click Java Download Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <!-- Java 8 Card -->
-      <div
-        class="p-5 rounded-xl bg-white/4 border border-white/8 flex flex-col justify-between"
-      >
+  <!-- Multi-Java Runtime Suite & Selection (Choose which Java is used) -->
+  <div class="p-6 rounded-2xl bg-[#0e1017]/90 border border-white/8 space-y-6 shadow-xl">
+    <!-- Header -->
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-white/8">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+          <Coffee class="w-5 h-5" />
+        </div>
         <div>
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-bold text-white">Java 8 (LTS)</span>
-            {#if launcher.detectedJavas.some((j) => j.major_version === 8)}
-              <span
-                class="text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold uppercase"
-              >
-                Installed
-              </span>
-            {/if}
-          </div>
-          <p class="text-xs text-neutral-300">
-            For Minecraft 1.8.9, 1.12.2, 1.16.5
+          <h3 class="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
+            <span>Java Runtimes & Execution Engine</span>
+            <span class="px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase">
+              Configurable
+            </span>
+          </h3>
+          <p class="text-xs text-neutral-300 mt-0.5">
+            Select which Java runtime executes your game or let the launcher dynamically choose the best JVM per Minecraft version.
           </p>
         </div>
-        <button
-          onclick={() => launcher.installJava(8)}
-          disabled={launcher.isInstallingJava}
-          class="mt-4 w-full py-2.5 rounded-lg bg-white/6 hover:bg-white/12 border border-white/10 text-xs font-bold text-white flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
-        >
-          <Download class="w-4 h-4 text-amber-400" />
-          <span>Install Java 8</span>
-        </button>
       </div>
 
-      <!-- Java 17 Card -->
-      <div
-        class="p-5 rounded-xl bg-white/4 border border-white/8 flex flex-col justify-between"
-      >
-        <div>
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-bold text-white">Java 17 (LTS)</span>
-            {#if launcher.detectedJavas.some((j) => j.major_version === 17)}
-              <span
-                class="text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold uppercase"
-              >
-                Installed
-              </span>
-            {/if}
-          </div>
-          <p class="text-xs text-neutral-300">For Minecraft 1.17 - 1.20.4</p>
-        </div>
+      <div class="flex items-center gap-2">
         <button
-          onclick={() => launcher.installJava(17)}
-          disabled={launcher.isInstallingJava}
-          class="mt-4 w-full py-2.5 rounded-lg bg-white/6 hover:bg-white/12 border border-white/10 text-xs font-bold text-white flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+          type="button"
+          onclick={() => launcher.scanForJava()}
+          class="px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-neutral-300 hover:text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
+          title="Scan system and runtimes folder for Java installations"
         >
-          <Download class="w-4 h-4 text-amber-400" />
-          <span>Install Java 17</span>
+          <RefreshCw class="w-3.5 h-3.5" />
+          <span>Scan System</span>
+        </button>
+
+        <button
+          type="button"
+          onclick={() => launcher.pickCustomJava()}
+          class="px-3 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-md shadow-amber-600/30"
+          title="Browse file explorer for custom javaw.exe executable"
+        >
+          <FolderOpen class="w-3.5 h-3.5" />
+          <span>Browse Java...</span>
         </button>
       </div>
+    </div>
 
-      <!-- Java 21 Card -->
-      <div
-        class="p-5 rounded-xl bg-white/4 border border-white/8 flex flex-col justify-between"
-      >
+    <!-- Active Java Selection Highlight Banner -->
+    <div class="p-4 rounded-xl bg-white/2 border border-white/8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+          <Check class="w-4 h-4" />
+        </div>
         <div>
-          <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-bold text-white">Java 21 (LTS)</span>
-            {#if launcher.detectedJavas.some((j) => j.major_version === 21)}
-              <span
-                class="text-xs px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold uppercase"
-              >
-                Installed
-              </span>
+          <div class="text-[10px] text-neutral-400 uppercase font-black tracking-wider flex items-center gap-2">
+            <span>Active Selection:</span>
+            {#if launcher.settings.custom_java_path}
+              <span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">Custom Override</span>
+            {:else}
+              <span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold">Auto-Detect (Smart)</span>
             {/if}
           </div>
-          <p class="text-xs text-neutral-300">For Minecraft 1.20.5 - 1.21.4+</p>
+          <div class="text-sm font-bold text-white mt-0.5 flex items-center gap-2">
+            {#if launcher.settings.custom_java_path}
+              <span>{launcher.detectedJavas.find((j) => j.path === launcher.settings.custom_java_path)?.display_name || "Custom Java Path"}</span>
+            {:else}
+              <span>Auto-Detect (Smart Version Resolution per Minecraft Edition)</span>
+            {/if}
+          </div>
+          {#if launcher.settings.custom_java_path}
+            <div class="text-[11px] font-mono text-neutral-400 truncate max-w-lg mt-0.5">
+              {launcher.settings.custom_java_path}
+            </div>
+          {:else}
+            <div class="text-[11px] text-neutral-400 mt-0.5">
+              MC ≤1.16 &rarr; Java 8 (Legacy) • MC 1.17–1.20.4 &rarr; Java 17 • MC 1.20.5+ &rarr; Java 21
+            </div>
+          {/if}
         </div>
+      </div>
+
+      {#if launcher.settings.custom_java_path}
         <button
-          onclick={() => launcher.installJava(21)}
-          disabled={launcher.isInstallingJava}
-          class="mt-4 w-full py-2.5 rounded-lg bg-white/6 hover:bg-white/12 border border-white/10 text-xs font-bold text-white flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+          type="button"
+          onclick={() => launcher.selectJava(null)}
+          class="px-3 py-1.5 rounded-lg bg-white/6 hover:bg-white/12 border border-white/10 text-neutral-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer shrink-0"
         >
-          <Download class="w-4 h-4 text-amber-400" />
-          <span>Install Java 21</span>
+          <RotateCcw class="w-3.5 h-3.5" />
+          <span>Reset to Auto-Detect</span>
         </button>
+      {/if}
+    </div>
+
+    <!-- Available Java Selection List -->
+    <div class="space-y-2.5">
+      <div class="text-xs text-neutral-300 font-bold uppercase tracking-wider">
+        Choose Which Java to Use:
+      </div>
+
+      <div class="grid grid-cols-1 gap-2.5">
+        <!-- Option 1: Auto-Detect (Default & Recommended) -->
+        <button
+          type="button"
+          onclick={() => launcher.selectJava(null)}
+          class="w-full p-4 rounded-xl text-left transition-all cursor-pointer flex items-center justify-between border {!launcher.settings.custom_java_path
+            ? 'bg-emerald-500/10 border-emerald-500/40 shadow-lg shadow-emerald-500/10'
+            : 'bg-white/2 hover:bg-white/5 border-white/6'}"
+        >
+          <div class="flex items-center gap-3">
+            <div class="w-5 h-5 rounded-full border flex items-center justify-center shrink-0 {!launcher.settings.custom_java_path
+              ? 'border-emerald-400 bg-emerald-500'
+              : 'border-white/20 bg-black/40'}">
+              {#if !launcher.settings.custom_java_path}
+                <Check class="w-3 h-3 text-black font-black" />
+              {/if}
+            </div>
+            <div>
+              <div class="text-xs font-bold text-white flex items-center gap-2">
+                <span>Auto-Detect & Route (Recommended)</span>
+                <span class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[10px] font-black uppercase">
+                  Default
+                </span>
+              </div>
+              <p class="text-[11px] text-neutral-400 mt-0.5">
+                Automatically matches the required Java runtime based on the Minecraft instance being launched.
+              </p>
+            </div>
+          </div>
+
+          <span class="text-xs font-bold {!launcher.settings.custom_java_path ? 'text-emerald-400' : 'text-neutral-500'}">
+            {!launcher.settings.custom_java_path ? "In Use" : "Select"}
+          </span>
+        </button>
+
+        <!-- Option 2+: Detected Java Installations -->
+        {#each launcher.detectedJavas as j}
+          {@const isSelected = launcher.settings.custom_java_path === j.path}
+          <button
+            type="button"
+            onclick={() => launcher.selectJava(j.path)}
+            class="w-full p-4 rounded-xl text-left transition-all cursor-pointer flex items-center justify-between border {isSelected
+              ? 'bg-amber-500/10 border-amber-500/40 shadow-lg shadow-amber-500/10'
+              : 'bg-white/2 hover:bg-white/5 border-white/6'}"
+          >
+            <div class="flex items-center gap-3">
+              <div class="w-5 h-5 rounded-full border flex items-center justify-center shrink-0 {isSelected
+                ? 'border-amber-400 bg-amber-500'
+                : 'border-white/20 bg-black/40'}">
+                {#if isSelected}
+                  <Check class="w-3 h-3 text-black font-black" />
+                {/if}
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white flex items-center gap-2">
+                  <span>{j.display_name}</span>
+                  <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase font-mono">
+                    Java {j.major_version}
+                  </span>
+                  {#if j.is_recommended}
+                    <span class="px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-300 text-[10px] font-bold">
+                      Recommended
+                    </span>
+                  {/if}
+                </div>
+                <div class="text-[11px] font-mono text-neutral-400 truncate max-w-lg mt-0.5">
+                  {j.path}
+                </div>
+              </div>
+            </div>
+
+            <span class="text-xs font-bold {isSelected ? 'text-amber-400' : 'text-neutral-500'}">
+              {isSelected ? "In Use" : "Select"}
+            </span>
+          </button>
+        {/each}
+
+        <!-- Custom Unlisted Path (if user picked custom not in detected list) -->
+        {#if launcher.settings.custom_java_path && !launcher.detectedJavas.some((j) => j.path === launcher.settings.custom_java_path)}
+          <div class="w-full p-4 rounded-xl text-left flex items-center justify-between border bg-amber-500/10 border-amber-500/40">
+            <div class="flex items-center gap-3">
+              <div class="w-5 h-5 rounded-full border border-amber-400 bg-amber-500 flex items-center justify-center shrink-0">
+                <Check class="w-3 h-3 text-black font-black" />
+              </div>
+              <div>
+                <div class="text-xs font-bold text-white flex items-center gap-2">
+                  <span>Custom Executable</span>
+                  <span class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-black uppercase">
+                    Custom Path
+                  </span>
+                </div>
+                <div class="text-[11px] font-mono text-neutral-300 truncate max-w-lg mt-0.5">
+                  {launcher.settings.custom_java_path}
+                </div>
+              </div>
+            </div>
+            <span class="text-xs font-bold text-amber-400">In Use</span>
+          </div>
+        {/if}
+      </div>
+    </div>
+
+    <!-- 1-Click Java Download Cards (Temurin OpenJDK 8, 17, 21) -->
+    <div class="pt-2 border-t border-white/8 space-y-3">
+      <div class="flex items-center justify-between">
+        <span class="text-xs text-neutral-300 font-bold uppercase tracking-wider">
+          Install Missing Java Runtimes (1-Click)
+        </span>
+        <span class="text-[11px] text-neutral-400">
+          Isolated launcher runtimes, no admin rights required
+        </span>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <!-- Java 8 Card -->
+        <div class="p-4 rounded-xl bg-white/2 border border-white/6 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-bold text-white">Java 8 (LTS)</span>
+              {#if launcher.detectedJavas.some((j) => j.major_version === 8)}
+                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold uppercase">
+                  Installed
+                </span>
+              {/if}
+            </div>
+            <p class="text-[11px] text-neutral-400">For Minecraft 1.8.9, 1.12.2, 1.16.5</p>
+          </div>
+          <button
+            onclick={() => launcher.installJava(8)}
+            disabled={launcher.isInstallingJava}
+            class="mt-3 w-full py-2 rounded-lg bg-white/6 hover:bg-white/12 border border-white/10 text-xs font-bold text-white flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+          >
+            <Download class="w-3.5 h-3.5 text-amber-400" />
+            <span>Install Java 8</span>
+          </button>
+        </div>
+
+        <!-- Java 17 Card -->
+        <div class="p-4 rounded-xl bg-white/2 border border-white/6 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-bold text-white">Java 17 (LTS)</span>
+              {#if launcher.detectedJavas.some((j) => j.major_version === 17)}
+                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold uppercase">
+                  Installed
+                </span>
+              {/if}
+            </div>
+            <p class="text-[11px] text-neutral-400">For Minecraft 1.17 - 1.20.4</p>
+          </div>
+          <button
+            onclick={() => launcher.installJava(17)}
+            disabled={launcher.isInstallingJava}
+            class="mt-3 w-full py-2 rounded-lg bg-white/6 hover:bg-white/12 border border-white/10 text-xs font-bold text-white flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+          >
+            <Download class="w-3.5 h-3.5 text-amber-400" />
+            <span>Install Java 17</span>
+          </button>
+        </div>
+
+        <!-- Java 21 Card -->
+        <div class="p-4 rounded-xl bg-white/2 border border-white/6 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs font-bold text-white">Java 21 (LTS)</span>
+              {#if launcher.detectedJavas.some((j) => j.major_version === 21)}
+                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold uppercase">
+                  Installed
+                </span>
+              {/if}
+            </div>
+            <p class="text-[11px] text-neutral-400">For Minecraft 1.20.5 - 1.21.4+</p>
+          </div>
+          <button
+            onclick={() => launcher.installJava(21)}
+            disabled={launcher.isInstallingJava}
+            class="mt-3 w-full py-2 rounded-lg bg-white/6 hover:bg-white/12 border border-white/10 text-xs font-bold text-white flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+          >
+            <Download class="w-3.5 h-3.5 text-amber-400" />
+            <span>Install Java 21</span>
+          </button>
+        </div>
       </div>
     </div>
 
     <!-- Java Install Progress Banner -->
     {#if launcher.isInstallingJava}
-      <div
-        class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2"
-      >
-        <div
-          class="flex items-center justify-between text-xs font-medium text-amber-300"
-        >
+      <div class="p-4 rounded-xl bg-amber-500/10 border border-amber-500/20 space-y-2">
+        <div class="flex items-center justify-between text-xs font-medium text-amber-300">
           <span>{launcher.javaInstallStatus}</span>
           <span>{launcher.javaInstallPercent}%</span>
         </div>

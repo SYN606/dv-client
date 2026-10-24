@@ -408,11 +408,14 @@
             >
           </div>
           <div class="flex justify-between items-center py-1">
-            <span class="text-neutral-400">Java Version</span>
-            <span class="text-white font-bold font-mono"
-              >Temurin {launcher.detectedJavas.find((j) => j.is_recommended)
-                ?.major_version || "Auto"}</span
-            >
+            <span class="text-neutral-400">Java Runtime</span>
+            <span class="text-white font-bold font-mono">
+              {#if launcher.settings.custom_java_path}
+                {launcher.detectedJavas.find((j) => j.path === launcher.settings.custom_java_path)?.display_name || "Custom Java"}
+              {:else}
+                Auto-Detect
+              {/if}
+            </span>
           </div>
         </div>
       </div>

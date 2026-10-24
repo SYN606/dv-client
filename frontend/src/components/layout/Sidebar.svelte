@@ -184,9 +184,9 @@
         ><Coffee class="w-4 h-4 text-amber-400" /> Java</span
       >
       <span class="text-neutral-100 font-bold truncate max-w-[100px]">
-        {launcher.detectedJavas.find((j) => j.is_recommended)?.display_name ||
-          launcher.detectedJavas[0]?.display_name ||
-          "Auto"}
+        {launcher.settings.custom_java_path
+          ? (launcher.detectedJavas.find((j) => j.path === launcher.settings.custom_java_path)?.display_name || "Custom Java")
+          : "Auto-Detect"}
       </span>
     </div>
     <div class="flex items-center justify-between">
