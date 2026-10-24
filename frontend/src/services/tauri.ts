@@ -227,6 +227,14 @@ export const TauriService = {
     return invoke("reset_game_directory");
   },
 
+  pickInstancesDirectory(): Promise<string | null> {
+    return invoke("pick_instances_directory");
+  },
+
+  resetInstancesDirectory(): Promise<LauncherSettings> {
+    return invoke("reset_instances_directory");
+  },
+
   openFolder(path: string): Promise<void> {
     return invoke("open_folder", { path });
   },

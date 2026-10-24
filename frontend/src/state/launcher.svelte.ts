@@ -755,6 +755,31 @@ export class LauncherState {
     }
   }
 
+  async pickInstancesDirectory() {
+    try {
+      const picked = await TauriService.pickInstancesDirectory();
+      if (picked) {
+        this.settings.instances_dir = picked;
+        await this.saveSettings();
+        await this.refreshInstances();
+        this.showToast(`Instances directory updated to: ${picked}`);
+      }
+    } catch (e: any) {
+      this.showToast("Failed to change instances directory: " + e);
+    }
+  }
+
+  async resetInstancesDirectory() {
+    try {
+      const res = await TauriService.resetInstancesDirectory();
+      this.settings = res;
+      await this.refreshInstances();
+      this.showToast("Instances directory reset to default path.");
+    } catch (e: any) {
+      this.showToast("Failed to reset instances directory: " + e);
+    }
+  }
+
   async pickCustomJava() {
     try {
       const res: JavaInstallation | null = await invoke("pick_custom_java");

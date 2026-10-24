@@ -9,8 +9,8 @@
     Wrench,
     CheckCircle2,
     HardDrive,
-    Server,
-    Copy,
+    Sliders,
+    FolderTree,
     ArrowUpRight,
     AlertTriangle,
     Send,
@@ -21,19 +21,6 @@
     X,
     FileText,
   } from "lucide-svelte";
-
-  let copiedIp = $state(false);
-
-  function copyServerIp() {
-    navigator.clipboard.writeText("play.digitalvigital.net");
-    copiedIp = true;
-    launcher.showToast(
-      "Server IP copied to clipboard: play.digitalvigital.net",
-    );
-    setTimeout(() => {
-      copiedIp = false;
-    }, 2500);
-  }
 
   function getLoaderColor(loader: string = "") {
     const l = loader.toLowerCase();
@@ -351,42 +338,35 @@
       </button>
     </div>
 
-    <!-- Official Community Server Card -->
+    <!-- Storage & Engine Management Card -->
     <div
       class="p-6 rounded-2xl bg-[#0e1017]/90 border border-white/8 hover:border-white/16 transition-all flex flex-col justify-between group"
     >
       <div>
         <div class="flex items-center justify-between mb-3">
           <div
-            class="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform"
+            class="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400 group-hover:scale-110 transition-transform"
           >
-            <Server class="w-5 h-5" />
+            <FolderTree class="w-5 h-5" />
           </div>
           <span
-            class="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5"
+            class="text-xs font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-cyan-500/15 text-cyan-400 border border-cyan-500/20"
           >
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"
-            ></span>
-            Online
+            Multi-Drive
           </span>
         </div>
-        <h3 class="font-bold text-base text-white">Digital Vigital Network</h3>
+        <h3 class="font-bold text-base text-white">Storage & Engine Paths</h3>
         <p class="text-xs text-neutral-300 mt-1.5 leading-relaxed font-normal">
-          Join the high-tickrate official multiplayer SMP & PvP arena server.
+          Customize base game files and instance directories across your SSDs and HDDs.
         </p>
       </div>
 
       <button
-        onclick={copyServerIp}
-        class="mt-5 w-full py-2.5 rounded-xl bg-white/5 hover:bg-emerald-500/20 hover:border-emerald-500/30 border border-white/10 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
+        onclick={() => (launcher.activeTab = "settings")}
+        class="mt-5 w-full py-2.5 rounded-xl bg-white/5 hover:bg-cyan-500/20 hover:border-cyan-500/30 border border-white/10 text-white text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer"
       >
-        {#if copiedIp}
-          <CheckCircle2 class="w-4 h-4 text-emerald-400" />
-          <span>COPIED IP!</span>
-        {:else}
-          <Copy class="w-4 h-4 text-emerald-400" />
-          <span class="font-mono">play.digitalvigital.net</span>
-        {/if}
+        <Sliders class="w-4 h-4 text-cyan-400" />
+        <span>Configure Storage</span>
       </button>
     </div>
 

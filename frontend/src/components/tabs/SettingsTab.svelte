@@ -9,6 +9,7 @@
     Download,
     Check,
     FolderOpen,
+    FolderTree,
     Radio,
     Sparkles,
     RefreshCw,
@@ -56,7 +57,7 @@
   </div>
 
   <!-- Game & Storage Directory Section (Prevent C: drive pileup) -->
-  <div class="p-6 rounded-2xl bg-[#0e1017]/90 border border-white/8 space-y-4 shadow-xl">
+  <div class="p-6 rounded-2xl bg-[#0e1017]/90 border border-white/8 space-y-5 shadow-xl">
     <div class="flex items-center justify-between pb-3 border-b border-white/8">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shrink-0">
@@ -64,32 +65,39 @@
         </div>
         <div>
           <h3 class="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
-            <span>Game & Storage Directory</span>
+            <span>Game & Storage Directories</span>
             <span class="px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 text-[10px] font-black uppercase">
               Multi-Drive Support
             </span>
           </h3>
           <p class="text-xs text-neutral-300 mt-0.5">
-            Store Minecraft versions, worlds, mods, and assets on ANY custom drive (D:, E:, etc.) to avoid filling your C: drive.
+            Store Minecraft assets, runtimes, and instances on ANY custom drive (D:, E:, etc.) to avoid filling your C: drive.
           </p>
         </div>
       </div>
-
-      <button
-        onclick={() => launcher.resetGameDirectory()}
-        class="text-xs text-neutral-400 hover:text-white transition-colors cursor-pointer"
-        title="Reset storage to default %APPDATA%\DigitalVigital path"
-      >
-        Reset Default
-      </button>
     </div>
 
-    <div class="space-y-3">
-      <div>
-        <div class="text-xs text-neutral-400 font-semibold block mb-1.5 uppercase tracking-wide">
-          Active Base Game Directory
+    <div class="grid grid-cols-1 gap-4">
+      <!-- 1. Base Game Directory -->
+      <div class="p-4 rounded-xl bg-white/2 border border-white/6 space-y-2">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs text-neutral-200 font-bold block uppercase tracking-wide">
+              Base Game & Core Assets Directory
+            </div>
+            <p class="text-[11px] text-neutral-400">
+              Shared Minecraft versions, libraries, runtime environments, and launcher cache.
+            </p>
+          </div>
+          <button
+            onclick={() => launcher.resetGameDirectory()}
+            class="text-[11px] text-neutral-400 hover:text-white transition-colors cursor-pointer"
+            title="Reset base data directory to %APPDATA%\DigitalVigital"
+          >
+            Reset Default
+          </button>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 pt-1">
           <input
             type="text"
             readonly
@@ -99,7 +107,7 @@
           <button
             onclick={() => launcher.pickGameDirectory()}
             class="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-red-600/30 shrink-0 active:scale-95"
-            title="Browse and select any folder or drive"
+            title="Browse and select base folder or drive"
           >
             <FolderOpen class="w-4 h-4" />
             <span>Browse / Change</span>
@@ -112,10 +120,52 @@
             <FolderOpen class="w-4 h-4" />
           </button>
         </div>
-        <p class="text-[11px] text-neutral-400 mt-1.5 flex items-center gap-1.5">
-          <span>Instances location:</span>
-          <span class="font-mono text-neutral-300">{launcher.settings.instances_dir || "Auto"}</span>
-        </p>
+      </div>
+
+      <!-- 2. Minecraft Instances Directory -->
+      <div class="p-4 rounded-xl bg-white/2 border border-white/6 space-y-2">
+        <div class="flex items-center justify-between">
+          <div>
+            <div class="text-xs text-neutral-200 font-bold block uppercase tracking-wide flex items-center gap-2">
+              <FolderTree class="w-3.5 h-3.5 text-cyan-400" />
+              <span>Minecraft Instances Directory</span>
+              <span class="px-1.5 py-0.5 rounded bg-cyan-500/15 text-cyan-300 text-[10px] font-bold">Independent Path</span>
+            </div>
+            <p class="text-[11px] text-neutral-400">
+              Where your Minecraft game profiles, worlds, mod configurations, and resource packs live.
+            </p>
+          </div>
+          <button
+            onclick={() => launcher.resetInstancesDirectory()}
+            class="text-[11px] text-neutral-400 hover:text-white transition-colors cursor-pointer"
+            title="Reset instances directory to default"
+          >
+            Reset Default
+          </button>
+        </div>
+        <div class="flex items-center gap-2 pt-1">
+          <input
+            type="text"
+            readonly
+            value={launcher.settings.instances_dir || "Loading directory..."}
+            class="flex-1 px-4 py-2.5 rounded-xl bg-white/4 border border-white/10 text-xs font-mono text-cyan-200 outline-none select-all"
+          />
+          <button
+            onclick={() => launcher.pickInstancesDirectory()}
+            class="px-4 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-cyan-600/30 shrink-0 active:scale-95"
+            title="Browse and select instances folder or drive"
+          >
+            <FolderTree class="w-4 h-4" />
+            <span>Browse / Change</span>
+          </button>
+          <button
+            onclick={() => launcher.openFolder(launcher.settings.instances_dir)}
+            class="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer shrink-0 border border-white/10"
+            title="Open instances folder in File Explorer"
+          >
+            <FolderOpen class="w-4 h-4" />
+          </button>
+        </div>
       </div>
     </div>
   </div>

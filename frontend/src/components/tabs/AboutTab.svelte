@@ -8,7 +8,7 @@
     ShieldCheck,
     Coffee,
     Sparkles,
-    Server,
+    MessageSquare,
     Globe,
     CheckCircle2,
     Code2,
@@ -199,7 +199,7 @@
         </div>
         <h4 class="text-base font-bold text-white">digitalvigital.fun/minecraft</h4>
         <p class="text-xs text-neutral-400 mt-1">
-          The official home for Digital Vigital launcher updates, custom mods, SMP announcements, and guides.
+          The official home for Digital Vigital launcher updates, custom mods, performance guides, and announcements.
         </p>
       </div>
       <button
@@ -211,27 +211,24 @@
       </button>
     </div>
 
-    <!-- Card 2: Official SMP -->
+    <!-- Card 2: Discord Community -->
     <div class="p-6 rounded-2xl bg-[#0e1017]/90 border border-white/8 space-y-3 flex flex-col justify-between">
       <div>
-        <div class="flex items-center gap-2 text-emerald-400 text-xs font-bold uppercase tracking-wider mb-2">
-          <Server class="w-4 h-4" />
-          <span>Digital Vigital SMP</span>
+        <div class="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider mb-2">
+          <MessageSquare class="w-4 h-4" />
+          <span>Community Discord</span>
         </div>
-        <h4 class="text-base font-bold text-white font-mono">play.digitalvigital.net</h4>
+        <h4 class="text-base font-bold text-white font-mono">discord.gg/flex-dv</h4>
         <p class="text-xs text-neutral-400 mt-1">
-          Join our official community Minecraft multiplayer server with custom performance optimizations and events.
+          Join our official community Discord for technical support, mod suggestions, feedback, and announcements.
         </p>
       </div>
       <button
-        onclick={() => {
-          navigator.clipboard.writeText("play.digitalvigital.net");
-          launcher.showToast("Copied server IP: play.digitalvigital.net");
-        }}
-        class="w-full px-4 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+        onclick={() => openLink("https://discord.gg/flex-dv")}
+        class="w-full px-4 py-2 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/30 text-indigo-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
       >
-        <CheckCircle2 class="w-3.5 h-3.5" />
-        <span>Copy Server IP</span>
+        <span>Join Discord</span>
+        <ExternalLink class="w-3.5 h-3.5" />
       </button>
     </div>
 

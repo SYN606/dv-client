@@ -178,6 +178,8 @@ pub fn run() {
             save_settings,
             pick_game_directory,
             reset_game_directory,
+            pick_instances_directory,
+            reset_instances_directory,
             open_folder,
             open_url,
             check_for_updates,
