@@ -97,3 +97,71 @@ pub async fn apply_cape(username: String, file_path: String) -> Result<PlayerSki
     dv_launcher::skins::save_custom_cape(&username, &file_path).map_err(|e| e.to_string())?;
     get_player_skin(Some(username)).await
 }
+
+fn decode_base64(input: &str) -> Result<Vec<u8>, String> {
+    const B64_REV: [i8; 256] = {
+        let mut table = [-1i8; 256];
+        let chars = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        let mut i = 0usize;
+        while i < chars.len() {
+            table[chars[i] as usize] = i as i8;
+            i += 1;
+        }
+        table
+    };
+
+    let mut out = Vec::with_capacity(input.len() * 3 / 4);
+    let mut buf = 0u32;
+    let mut bits = 0;
+
+    for &byte in input.as_bytes() {
+        if byte == b'=' || byte.is_ascii_whitespace() {
+            continue;
+        }
+        let val = B64_REV[byte as usize];
+        if val < 0 {
+            return Err("Invalid base64 character".to_string());
+        }
+        buf = (buf << 6) | (val as u32);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buf >> bits) as u8);
+        }
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub async fn apply_skin_base64(username: String, base64_data: String) -> Result<PlayerSkinPayload, String> {
+    let clean_b64 = if let Some(idx) = base64_data.find(',') {
+        &base64_data[idx + 1..]
+    } else {
+        &base64_data
+    };
+
+    let bytes = decode_base64(clean_b64)?;
+    let temp_path = std::env::temp_dir().join(format!("dv_skin_{}.png", username));
+    std::fs::write(&temp_path, &bytes).map_err(|e| e.to_string())?;
+    let res = dv_launcher::skins::save_custom_skin(&username, &temp_path);
+    let _ = std::fs::remove_file(&temp_path);
+    res.map_err(|e| e.to_string())?;
+    get_player_skin(Some(username)).await
+}
+
+#[tauri::command]
+pub async fn apply_cape_base64(username: String, base64_data: String) -> Result<PlayerSkinPayload, String> {
+    let clean_b64 = if let Some(idx) = base64_data.find(',') {
+        &base64_data[idx + 1..]
+    } else {
+        &base64_data
+    };
+
+    let bytes = decode_base64(clean_b64)?;
+    let temp_path = std::env::temp_dir().join(format!("dv_cape_{}.png", username));
+    std::fs::write(&temp_path, &bytes).map_err(|e| e.to_string())?;
+    let res = dv_launcher::skins::save_custom_cape(&username, &temp_path);
+    let _ = std::fs::remove_file(&temp_path);
+    res.map_err(|e| e.to_string())?;
+    get_player_skin(Some(username)).await
+}

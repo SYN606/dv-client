@@ -154,6 +154,12 @@ pub fn run() {
                 }
             });
 
+            if let Some(win) = handle.get_webview_window("main") {
+                if let Some(icon) = app.default_window_icon() {
+                    let _ = win.set_icon(icon.clone());
+                }
+            }
+
             append_startup_log("8. Tauri setup() finished, webview starting");
             Ok(())
         })
@@ -198,7 +204,9 @@ pub fn run() {
             pick_cape_file,
             get_player_skin,
             apply_skin,
+            apply_skin_base64,
             apply_cape,
+            apply_cape_base64,
             reset_skin,
             reset_cape,
             launch_game,

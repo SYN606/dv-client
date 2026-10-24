@@ -664,6 +664,25 @@ export class LauncherState {
     }
   }
 
+  async applySkinBase64(base64Data: string) {
+    if (!this.activeAccount) {
+      this.showToast("Select a player account first.");
+      return;
+    }
+    try {
+      this.isLoadingSkin = true;
+      const res: PlayerSkinPayload = await TauriService.applySkinBase64(this.activeAccount.username, base64Data);
+      if (res && res.skin_data_url) {
+        this.activeSkinDataUrl = res.skin_data_url;
+      }
+      this.showToast("Skin applied to profile!");
+    } catch (e: any) {
+      this.showToast("Failed to apply skin: " + e);
+    } finally {
+      this.isLoadingSkin = false;
+    }
+  }
+
   async pickAndApplyCape() {
     if (!this.activeAccount) {
       this.showToast("Select a player account first.");
@@ -680,6 +699,51 @@ export class LauncherState {
       }
     } catch (e) {
       this.showToast("Cape upload error: " + e);
+    }
+  }
+
+  async applyCapeBase64(base64Data: string) {
+    if (!this.activeAccount) {
+      this.showToast("Select a player account first.");
+      return;
+    }
+    try {
+      this.isLoadingSkin = true;
+      const res: PlayerSkinPayload = await TauriService.applyCapeBase64(this.activeAccount.username, base64Data);
+      if (res && res.cape_data_url) {
+        this.activeCapeDataUrl = res.cape_data_url;
+      }
+      this.showToast("Cape applied to profile!");
+    } catch (e: any) {
+      this.showToast("Failed to apply cape: " + e);
+    } finally {
+      this.isLoadingSkin = false;
+    }
+  }
+
+  async importSkinByUsername(username: string) {
+    if (!this.activeAccount) {
+      this.showToast("Select a player account first.");
+      return;
+    }
+    const cleanUser = username.trim();
+    if (!cleanUser) return;
+    try {
+      this.isLoadingSkin = true;
+      const url = `https://minotar.net/skin/${encodeURIComponent(cleanUser)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error("Player skin not found");
+      const blob = await resp.blob();
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const b64 = reader.result as string;
+        await this.applySkinBase64(b64);
+        this.showToast(`Imported ${cleanUser}'s skin!`);
+      };
+      reader.readAsDataURL(blob);
+    } catch (e: any) {
+      this.showToast(`Could not load skin for ${cleanUser}: ${e.message || e}`);
+      this.isLoadingSkin = false;
     }
   }
 

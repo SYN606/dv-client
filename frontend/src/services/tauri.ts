@@ -145,8 +145,16 @@ export const TauriService = {
     return invoke("apply_skin", { username, filePath });
   },
 
+  applySkinBase64(username: string, base64Data: string): Promise<PlayerSkinPayload> {
+    return invoke("apply_skin_base64", { username, base64Data });
+  },
+
   applyCape(username: string, filePath: string): Promise<PlayerSkinPayload> {
     return invoke("apply_cape", { username, filePath });
+  },
+
+  applyCapeBase64(username: string, base64Data: string): Promise<PlayerSkinPayload> {
+    return invoke("apply_cape_base64", { username, base64Data });
   },
 
   resetSkin(username: string): Promise<PlayerSkinPayload> {
