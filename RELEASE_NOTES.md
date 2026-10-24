@@ -45,12 +45,17 @@
 ---
 
 ### ☕ Multi-Java Runtime Suite (Java 8, 17, 21)
+- **Interactive Java Selector in Settings**:
+  - Full visual list of all detected Java installations on the machine with version badges (**Java 8**, **Java 17**, **Java 21**).
+  - 1-Click activation of any specific Java installation or "Auto-Detect (Recommended)".
+  - "Browse Custom Java..." native dialog to pick any `java.exe` on any drive.
+  - "Re-scan System" button to refresh installed JVMs on the fly.
+  - Active Java status displayed dynamically across the sidebar and Play tab.
 - **Automatic Version Resolution**:
   - Minecraft ≤ 1.16.5: Automatically routes to **Java 8** (essential for Forge 1.8.9 / 1.12.2).
   - Minecraft 1.17 – 1.20.4: Automatically routes to **Java 17**.
   - Minecraft 1.20.5+: Automatically routes to **Java 21**.
 - **Automated 1-Click Java Installers**: Download and install Temurin OpenJDK runtimes directly into isolated launcher directories without requiring administrative rights.
-- **Custom Java Path Support**: Browse and select custom JVM installations with system architecture validation.
 
 ---
 
@@ -94,10 +99,10 @@
 
 ## Verified SHA-256 Checksums (v1.0.0)
 ```text
-56ce54f2b5cd5e4aee7a2c9bc4d795a4264ed57604e36f834311b0f825924e7f  DigitalVigital-Setup-1.0.0.exe
-d546f5ff431ccdbc6e4d95a7ab04e34f9fbe10f51f33733185ee35605f8261a7  dist/DigitalVigital-v1.0.0-windows-x64-portable.zip
-1261c384951a1778d0397a98fd5a8b6fdecab9f00127a7ed10d008251a02162c  DigitalVigitalLauncher.exe
-1261c384951a1778d0397a98fd5a8b6fdecab9f00127a7ed10d008251a02162c  dv-launcher-app.exe
+b852051b309b60e0eb9569ba56ac18fd7c13fb67d9efdbadf9ae0b5405fec6b9  DigitalVigital-Setup-1.0.0.exe
+69b6903df5a55ee5d3a9723f22394687f9714dd18c98d8486eec9ddb2e1248cc  dist/DigitalVigital-v1.0.0-windows-x64-portable.zip
+2f4be00a14b2f6cf3560f14aa24072f00c8ea7a2a2a1c1464e6690abc16c9c67  DigitalVigitalLauncher.exe
+2f4be00a14b2f6cf3560f14aa24072f00c8ea7a2a2a1c1464e6690abc16c9c67  dv-launcher-app.exe
 ```
 
 ---
