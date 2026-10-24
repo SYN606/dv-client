@@ -40,11 +40,6 @@
           class="flex items-center gap-1.5 text-xs text-neutral-400 font-medium"
         >
           <span>v{launcher.launcherInfo.version}</span>
-          <span class="text-neutral-600">•</span>
-          <span
-            class="text-red-400 font-bold uppercase tracking-wider text-[10px]"
-            >Tauri v2</span
-          >
         </div>
       </div>
     </div>
