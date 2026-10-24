@@ -1,6 +1,6 @@
 [package]
 name = "dv-launcher-app"
-version = "3.0.0"
+version = "1.0.0"
 description = "Digital Vigital Minecraft Launcher powered by Tauri v2 and Svelte"
 authors = ["Digital Vigital"]
 edition = "2021"

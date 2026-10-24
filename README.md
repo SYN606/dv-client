@@ -5,7 +5,7 @@
 # Digital Vigital (DV) Launcher
 ### *Your Minecraft. Your Control.*
 
-[![Release](https://img.shields.io/badge/Release-v3.0.0-FF3344?style=for-the-badge)](https://github.com/SYN606/dv-client)
+[![Release](https://img.shields.io/badge/Release-v1.0.0-FF3344?style=for-the-badge)](https://github.com/SYN606/dv-client)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Server-5865F2?style=for-the-badge&logo=discord&logoColor=white)](https://discord.gg/flex-dv)
 [![Website](https://img.shields.io/badge/Website-digitalvigital.fun-10B981?style=for-the-badge)](https://digitalvigital.fun/minecraft)
 
@@ -51,7 +51,7 @@ Make sure you have a modern **Java** installed (Java 21 is recommended for lates
 ### 2. Run the Launcher
 
 #### From Pre-built Executable
-Simply download and run `dv-launcher-app.exe` (or `DigitalVigital-Setup-3.0.0.exe` installer).
+Simply download and run `dv-launcher-app.exe` (or `DigitalVigital-Setup-1.0.0.exe` installer).
 
 #### From Source
 ```bash

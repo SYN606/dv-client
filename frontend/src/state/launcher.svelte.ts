@@ -35,7 +35,7 @@ export interface ModrinthSearchResult {
 
 export class LauncherState {
   activeTab = $state<Tab>("play");
-  launcherInfo = $state<LauncherInfo>({ name: "Digital Vigital", version: "3.0.0", author: "Digital Vigital", repo_url: "" });
+  launcherInfo = $state<LauncherInfo>({ name: "Digital Vigital", version: "1.0.0", author: "Digital Vigital", repo_url: "" });
 
   // Profiles
   instances = $state<Instance[]>([]);
@@ -727,6 +727,31 @@ export class LauncherState {
       this.showToast("Settings saved successfully!");
     } catch (e) {
       this.showToast("Failed to save settings: " + e);
+    }
+  }
+
+  async pickGameDirectory() {
+    try {
+      const picked = await TauriService.pickGameDirectory();
+      if (picked) {
+        this.settings.data_dir = picked;
+        await this.saveSettings();
+        await this.refreshInstances();
+        this.showToast(`Game directory updated to: ${picked}`);
+      }
+    } catch (e: any) {
+      this.showToast("Failed to change game directory: " + e);
+    }
+  }
+
+  async resetGameDirectory() {
+    try {
+      const res = await TauriService.resetGameDirectory();
+      this.settings = res;
+      await this.refreshInstances();
+      this.showToast("Game directory reset to default system path.");
+    } catch (e: any) {
+      this.showToast("Failed to reset directory: " + e);
     }
   }
 

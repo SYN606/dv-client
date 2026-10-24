@@ -1,6 +1,6 @@
 [package]
 name = "dv-launcher"
-version = "3.0.0"
+version = "1.0.0"
 edition = "2021"
 authors = ["Digital Vigital"]
 description = "High-performance, privacy-first desktop Minecraft launcher engine powered by Rust"

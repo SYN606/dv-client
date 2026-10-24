@@ -9,6 +9,7 @@
     Terminal,
     Coffee,
     Cpu,
+    Info,
   } from "lucide-svelte";
 </script>
 
@@ -100,7 +101,7 @@
               ? 'text-red-400'
               : 'text-neutral-400'}"
           />
-          <span>Mod Studio</span>
+          <span>Mod</span>
         </div>
         {#if launcher.installedMods.length > 0}
           <span
@@ -123,7 +124,7 @@
             ? 'text-red-400'
             : 'text-neutral-400'}"
         />
-        <span>3D Skins & Capes</span>
+        <span>Skins</span>
       </button>
 
       <button
@@ -138,7 +139,7 @@
             ? 'text-red-400'
             : 'text-neutral-400'}"
         />
-        <span>Java & Engine</span>
+        <span>Settings</span>
       </button>
 
       <button
@@ -154,12 +155,27 @@
               ? 'text-red-400'
               : 'text-neutral-400'}"
           />
-          <span>Live Console</span>
+          <span>Console</span>
         </div>
         {#if launcher.gameStatus === "running"}
           <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"
           ></span>
         {/if}
+      </button>
+
+      <button
+        onclick={() => (launcher.activeTab = "about")}
+        class="w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all cursor-pointer {launcher.activeTab ===
+        'about'
+          ? 'bg-red-500/15 text-red-400 border border-red-500/30 shadow-lg shadow-red-500/10'
+          : 'text-neutral-300 hover:text-white hover:bg-white/5'}"
+      >
+        <Info
+          class="w-4 h-4 {launcher.activeTab === 'about'
+            ? 'text-red-400'
+            : 'text-neutral-400'}"
+        />
+        <span>About</span>
       </button>
     </nav>
   </div>

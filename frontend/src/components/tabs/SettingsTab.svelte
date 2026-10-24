@@ -34,11 +34,10 @@
         class="text-2xl font-black text-white uppercase tracking-tight flex items-center gap-3"
       >
         <Settings class="w-6 h-6 text-red-500" />
-        <span>Java Runtime & Engine Settings</span>
+        <span>Settings</span>
       </h2>
       <p class="text-xs text-neutral-300 mt-1 font-medium">
-        Fine-tune JVM performance, multi-version Java runtimes (8, 17, 21), and
-        GPU acceleration.
+        Configure game storage directory, JVM performance, multi-version Java runtimes, and GPU acceleration.
       </p>
     </div>
 
@@ -54,6 +53,71 @@
         <span>SAVE SETTINGS</span>
       {/if}
     </button>
+  </div>
+
+  <!-- Game & Storage Directory Section (Prevent C: drive pileup) -->
+  <div class="p-6 rounded-2xl bg-[#0e1017]/90 border border-white/8 space-y-4 shadow-xl">
+    <div class="flex items-center justify-between pb-3 border-b border-white/8">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-400 shrink-0">
+          <HardDrive class="w-5 h-5" />
+        </div>
+        <div>
+          <h3 class="text-sm font-bold uppercase tracking-wider text-white flex items-center gap-2">
+            <span>Game & Storage Directory</span>
+            <span class="px-2 py-0.5 rounded-full bg-red-500/20 text-red-300 text-[10px] font-black uppercase">
+              Multi-Drive Support
+            </span>
+          </h3>
+          <p class="text-xs text-neutral-300 mt-0.5">
+            Store Minecraft versions, worlds, mods, and assets on ANY custom drive (D:, E:, etc.) to avoid filling your C: drive.
+          </p>
+        </div>
+      </div>
+
+      <button
+        onclick={() => launcher.resetGameDirectory()}
+        class="text-xs text-neutral-400 hover:text-white transition-colors cursor-pointer"
+        title="Reset storage to default %APPDATA%\DigitalVigital path"
+      >
+        Reset Default
+      </button>
+    </div>
+
+    <div class="space-y-3">
+      <div>
+        <div class="text-xs text-neutral-400 font-semibold block mb-1.5 uppercase tracking-wide">
+          Active Base Game Directory
+        </div>
+        <div class="flex items-center gap-2">
+          <input
+            type="text"
+            readonly
+            value={launcher.settings.data_dir || "Loading directory..."}
+            class="flex-1 px-4 py-2.5 rounded-xl bg-white/4 border border-white/10 text-xs font-mono text-neutral-200 outline-none select-all"
+          />
+          <button
+            onclick={() => launcher.pickGameDirectory()}
+            class="px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-red-600/30 shrink-0 active:scale-95"
+            title="Browse and select any folder or drive"
+          >
+            <FolderOpen class="w-4 h-4" />
+            <span>Browse / Change</span>
+          </button>
+          <button
+            onclick={() => launcher.openFolder(launcher.settings.data_dir)}
+            class="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white transition-all cursor-pointer shrink-0 border border-white/10"
+            title="Open folder in File Explorer"
+          >
+            <FolderOpen class="w-4 h-4" />
+          </button>
+        </div>
+        <p class="text-[11px] text-neutral-400 mt-1.5 flex items-center gap-1.5">
+          <span>Instances location:</span>
+          <span class="font-mono text-neutral-300">{launcher.settings.instances_dir || "Auto"}</span>
+        </p>
+      </div>
+    </div>
   </div>
 
   <!-- Multi-Java Runtime Suite (8, 17, 21) -->

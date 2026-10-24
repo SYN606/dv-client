@@ -4,18 +4,18 @@
 [Setup]
 AppId={{8B847688-662E-4D4B-A795-B33AC6EC8B99}
 AppName=Digital Vigital Launcher
-AppVersion=3.0.0
+AppVersion=1.0.0
 AppPublisher=Digital Vigital
-AppPublisherURL=https://digitalvigital.fun
+AppPublisherURL=https://digitalvigital.fun/minecraft
 AppSupportURL=https://discord.gg/flex-dv
-AppUpdatesURL=https://digitalvigital.fun
+AppUpdatesURL=https://digitalvigital.fun/minecraft
 ; Default directory allows user to choose ANY drive (C:, D:, E:, etc.)
 DefaultDirName={autopf}\Digital Vigital Launcher
 DisableDirPage=no
 AllowNoIcons=yes
 AlwaysShowDirOnEditPage=yes
 OutputDir=..\..\dist
-OutputBaseFilename=DigitalVigital-Setup-3.0.0
+OutputBaseFilename=DigitalVigital-Setup-1.0.0
 SetupIconFile=..\..\assets\logo.ico
 LicenseFile=license.rtf
 Compression=lzma2/ultra64

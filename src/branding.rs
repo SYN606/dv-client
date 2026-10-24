@@ -7,19 +7,19 @@ pub const APP_NAME: &str = "Digital Vigital";
 pub const APP_NAME_SHORT: &str = "DV";
 pub const APP_TITLE: &str = "Digital Vigital (DV) - Minecraft Launcher";
 pub const APP_TAGLINE: &str = "Your Minecraft. Your Control.";
-pub const APP_VERSION: &str = "3.0.0";
-pub const BUILD_NUMBER: &str = "300";
+pub const APP_VERSION: &str = "1.0.0";
+pub const BUILD_NUMBER: &str = "100";
 pub const PACKAGE_IDENTIFIER: &str = "fun.digitalvigital.launcher";
 pub const ORGANIZATION_NAME: &str = "Digital Vigital";
 
 /// User-Agent header for official Minecraft, Mojang, and loader APIs.
-pub const USER_AGENT: &str = "DigitalVigital/3.0.0 (Rust x64; DV Edition)";
+pub const USER_AGENT: &str = "DigitalVigital/1.0.0 (Rust x64; DV Edition)";
 
 // Official Community & Project URLs
-pub const WEBSITE_URL: &str = "https://digitalvigital.fun";
+pub const WEBSITE_URL: &str = "https://digitalvigital.fun/minecraft";
 pub const DISCORD_URL: &str = "https://discord.gg/flex-dv";
-pub const PROJECT_URL: &str = "https://digitalvigital.fun";
-pub const DOCUMENTATION_URL: &str = "https://digitalvigital.fun";
+pub const PROJECT_URL: &str = "https://digitalvigital.fun/minecraft";
+pub const DOCUMENTATION_URL: &str = "https://digitalvigital.fun/minecraft";
 pub const SUPPORT_URL: &str = "https://discord.gg/flex-dv";
 pub const SECURITY_CONTACT: &str = "admin@digitalvigital.fun";
 

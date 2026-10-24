@@ -13,6 +13,7 @@
   import SkinsTab from "./components/tabs/SkinsTab.svelte";
   import SettingsTab from "./components/tabs/SettingsTab.svelte";
   import ConsoleTab from "./components/tabs/ConsoleTab.svelte";
+  import AboutTab from "./components/tabs/AboutTab.svelte";
 
   // Modals & Overlays
   import AccountModal from "./components/modals/AccountModal.svelte";
@@ -52,6 +53,8 @@
         <SettingsTab />
       {:else if launcher.activeTab === "console"}
         <ConsoleTab />
+      {:else if launcher.activeTab === "about"}
+        <AboutTab />
       {/if}
     </main>
   </div>

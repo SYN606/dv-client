@@ -103,6 +103,39 @@ pub async fn get_settings(state: State<'_, AppState>) -> Result<SettingsDto, Str
 }
 
 #[tauri::command]
+pub async fn pick_game_directory() -> Result<Option<String>, String> {
+    let picked = tokio::task::spawn_blocking(|| {
+        rfd::FileDialog::new()
+            .set_title("Select Digital Vigital Game & Data Directory")
+            .pick_folder()
+            .map(|p| p.to_string_lossy().to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+
+    Ok(picked)
+}
+
+#[tauri::command]
+pub async fn reset_game_directory(state: State<'_, AppState>) -> Result<SettingsDto, String> {
+    let default_dir = dv_launcher::config::get_default_app_data_dir();
+    {
+        let mut cm = state.config_mgr.lock().await;
+        cm.config.data_dir = default_dir.clone();
+        let new_inst_dir = cm.config.instances_dir();
+        let _ = std::fs::create_dir_all(&default_dir);
+        let _ = std::fs::create_dir_all(&new_inst_dir);
+        cm.save().map_err(|e| e.to_string())?;
+
+        let mut im = state.instance_mgr.lock().await;
+        im.instances_dir = new_inst_dir;
+        let _ = im.load_all();
+    }
+
+    get_settings(state).await
+}
+
+#[tauri::command]
 pub async fn save_settings(settings: SettingsDto, state: State<'_, AppState>) -> Result<(), String> {
     let mut cm = state.config_mgr.lock().await;
     cm.config.default_min_memory_mb = settings.default_min_memory_mb;
@@ -115,6 +148,21 @@ pub async fn save_settings(settings: SettingsDto, state: State<'_, AppState>) ->
     cm.config.on_launch_action = settings.on_launch_action;
     cm.config.privacy.enable_discord_rpc = settings.enable_discord_rpc;
     cm.config.default_java_path = settings.custom_java_path.map(PathBuf::from);
+
+    let trimmed_dir = settings.data_dir.trim();
+    if !trimmed_dir.is_empty() {
+        let new_path = PathBuf::from(trimmed_dir);
+        if new_path != cm.config.data_dir {
+            let _ = std::fs::create_dir_all(&new_path);
+            cm.config.data_dir = new_path;
+            let new_inst_dir = cm.config.instances_dir();
+            let _ = std::fs::create_dir_all(&new_inst_dir);
+
+            let mut im = state.instance_mgr.lock().await;
+            im.instances_dir = new_inst_dir;
+            let _ = im.load_all();
+        }
+    }
 
     cm.save().map_err(|e| e.to_string())?;
     Ok(())

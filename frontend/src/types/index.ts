@@ -1,4 +1,4 @@
-export type Tab = "play" | "instances" | "mods" | "skins" | "settings" | "console";
+export type Tab = "play" | "instances" | "mods" | "skins" | "settings" | "console" | "about";
 
 export interface LauncherInfo {
   name: string;

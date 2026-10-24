@@ -176,6 +176,8 @@ pub fn run() {
             detect_gpus,
             get_settings,
             save_settings,
+            pick_game_directory,
+            reset_game_directory,
             open_folder,
             open_url,
             check_for_updates,
