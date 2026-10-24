@@ -80,10 +80,13 @@
 
 ---
 
-### 💎 Visual Identity & Canonical Windows Resource Icon
+### 💎 Visual Identity & Installer Overhaul
 - **New Cube Logo**: High-resolution obsidian, ruby, and gold cube branding across all assets (16x16, 32x32, 48x48, 64x64, 128x128, 256x256, 512x512).
 - **Windows PE Resource Fix**:
   - Embedded canonical **`1 ICON` (`MAINICON`)** and `32512 ICON` directly into the PE `.rsrc` table, ensuring Windows Explorer, taskbar, Alt-Tab, and desktop shortcuts display the custom logo instead of default framework icons.
+- **Setup Installer Visual Overhaul**:
+  - Custom branded 150×57 header bitmap (`header.bmp`) and 164×314 wizard sidebar (`wizard.bmp`) featuring the glowing cube logo and launcher insignia.
+  - Setup executable (`DigitalVigital-Setup-1.0.0.exe`) and uninstaller fully branded with canonical multi-resolution `.ico`.
 
 ---
 
@@ -91,8 +94,8 @@
 
 | Package | Size | Description |
 | :--- | :---: | :--- |
-| [**`DigitalVigital-Setup-1.0.0.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-Setup-1.0.0.exe) | **~10.5 MB** | **Windows NSIS Setup**: Interactive installer with custom drive selection, Start Menu & Desktop shortcuts, clean uninstaller, and Add/Remove Programs registration. |
-| [**`DigitalVigital-v1.0.0-windows-x64-portable.zip`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-v1.0.0-windows-x64-portable.zip) | **~28.5 MB** | **Portable Standalone Package**: Contains `DigitalVigitalLauncher.exe`, `dv-launcher-app.exe`, assets, and documentation. No installation required. |
+| [**`DigitalVigital-Setup-1.0.0.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-Setup-1.0.0.exe) | **~10.4 MB** | **Windows NSIS Setup**: Interactive installer with custom drive selection, Start Menu & Desktop shortcuts, clean uninstaller, and Add/Remove Programs registration. |
+| [**`DigitalVigital-v1.0.0-windows-x64-portable.zip`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-v1.0.0-windows-x64-portable.zip) | **~14.5 MB** | **Portable Standalone Package**: Contains `DigitalVigitalLauncher.exe`, `dv-launcher-app.exe`, assets, and documentation. No installation required. |
 | [**`DigitalVigitalLauncher.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigitalLauncher.exe) | **41 MB** | **Direct Executable**: Standalone Windows executable with embedded primary icon resource (`1 ICON`). |
 
 ---
