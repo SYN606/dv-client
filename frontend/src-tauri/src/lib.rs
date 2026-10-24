@@ -212,6 +212,7 @@ pub fn run() {
             launch_game,
             stop_game,
             get_game_status,
+            get_last_crash_analysis,
             get_latest_logs,
             open_logs_folder,
             export_logs,

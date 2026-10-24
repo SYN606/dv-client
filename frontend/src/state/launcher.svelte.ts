@@ -18,6 +18,7 @@ import type {
   CatalogModItem,
   PlayerSkinPayload,
   UpdateCheckResult,
+  CrashAnalysis,
 } from "../types";
 
 export interface ModrinthSearchResult {
@@ -61,6 +62,8 @@ export class LauncherState {
   logLevelFilter = $state<"ALL" | "INFO" | "WARN" | "ERROR">("ALL");
   isReportingCrash = $state(false);
   crashReportSuccess = $state(false);
+  crashDetails = $state<CrashAnalysis | null>(null);
+  hasManualCrash = $state(false);
 
   // Software Updates
   updateInfo = $state<UpdateCheckResult | null>(null);
@@ -177,6 +180,16 @@ export class LauncherState {
           this.gameStatus = "crashed";
           this.launchStatusText = "Game crashed. Check Live Console.";
           this.showToast("Minecraft exited unexpectedly.");
+        }
+      });
+
+      await listen<CrashAnalysis>("game-crashed", (event) => {
+        this.crashDetails = event.payload;
+        this.hasManualCrash = true;
+        this.gameStatus = "crashed";
+        if (event.payload?.headline) {
+          this.launchStatusText = `Crashed: ${event.payload.headline}`;
+          this.showToast(`[${event.payload.category}] ${event.payload.headline}`);
         }
       });
 
@@ -343,30 +356,61 @@ export class LauncherState {
     }
   }
 
-  getInstalledModFor(mod: { title: string; slug?: string }): ModItem | null {
+  getInstalledModFor(mod: { id?: string; title: string; slug?: string }): ModItem | null {
     if (!this.installedMods || !this.installedMods.length) return null;
-    const modTitle = (mod.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const modSlug = (mod.slug || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const targetId = mod.id ? String(mod.id).trim().toLowerCase() : "";
+    const targetSlug = mod.slug ? mod.slug.trim().toLowerCase() : "";
+    const targetTitle = (mod.title || "").toLowerCase().trim();
+    const cleanTargetTitle = targetTitle.replace(/[^a-z0-9]/g, "");
 
     return this.installedMods.find(m => {
-      const mName = (m.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const mFile = (m.file_name || m.filename || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-
-      // 1. Direct title/name match
-      if (modTitle && mName && (mName === modTitle || mName.includes(modTitle) || modTitle.includes(mName))) {
-        return true;
-      }
-      // 2. Slug match against filename or mod name
-      if (modSlug && modSlug.length >= 3) {
-        if (mName.includes(modSlug) || mFile.includes(modSlug)) {
+      // 1. Strict Project UUID / ID match (Highest precision - Modrinth project ID or CurseForge ID)
+      if (targetId && m.project_id) {
+        if (String(m.project_id).trim().toLowerCase() === targetId) {
           return true;
         }
       }
+
+      // 2. Strict Slug match
+      if (targetSlug && m.slug) {
+        if (m.slug.trim().toLowerCase() === targetSlug) {
+          return true;
+        }
+      }
+
+      // 3. Strict mod_id match (from fabric.mod.json / mods.toml)
+      if (targetSlug && m.mod_id) {
+        if (m.mod_id.trim().toLowerCase() === targetSlug) {
+          return true;
+        }
+      }
+
+      // 4. Exact Title Match (equality ONLY, never substring includes)
+      const mNameClean = (m.name || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+      if (cleanTargetTitle && mNameClean && cleanTargetTitle === mNameClean) {
+        return true;
+      }
+
+      // 5. Strict filename prefix match (e.g. "sodium-fabric-0.6.14.jar")
+      // MUST NOT be a loose substring: only if followed by '-', '_', or '.'
+      const mFileLower = (m.file_name || m.filename || "").toLowerCase();
+      if (targetSlug && targetSlug.length >= 3) {
+        if (
+          mFileLower.startsWith(`${targetSlug}-`) ||
+          mFileLower.startsWith(`${targetSlug}_`) ||
+          mFileLower.startsWith(`${targetSlug}.`) ||
+          mFileLower === `${targetSlug}.jar` ||
+          mFileLower === `${targetSlug}.jar.disabled`
+        ) {
+          return true;
+        }
+      }
+
       return false;
     }) || null;
   }
 
-  isModInstalled(mod: { title: string; slug?: string }): boolean {
+  isModInstalled(mod: { id?: string; title: string; slug?: string }): boolean {
     return this.getInstalledModFor(mod) !== null;
   }
 
@@ -513,11 +557,15 @@ export class LauncherState {
         filename = await invoke("install_curseforge_mod", {
           instanceId: this.activeInstance.id,
           modId: parseInt(mod.id, 10),
+          slug: mod.slug,
+          title: mod.title,
         });
       } else {
         filename = await invoke("install_modrinth_mod", {
           instanceId: this.activeInstance.id,
           projectId: mod.id,
+          slug: mod.slug,
+          title: mod.title,
         });
       }
       this.showToast(`Installed ${filename || mod.title}!`);
@@ -529,7 +577,7 @@ export class LauncherState {
     }
   }
 
-  async uninstallCatalogMod(mod: { title: string; slug?: string }) {
+  async uninstallCatalogMod(mod: { id?: string; title: string; slug?: string }) {
     if (!this.activeInstance) return;
     const installed = this.getInstalledModFor(mod);
     try {
@@ -539,10 +587,11 @@ export class LauncherState {
           filename: installed.file_name || installed.filename || "",
         });
       }
-      if (mod.slug) {
+      const lookupSlug = mod.slug || mod.id;
+      if (lookupSlug) {
         await invoke("uninstall_modrinth_mod", {
           instanceId: this.activeInstance.id,
-          slug: mod.slug,
+          slug: lookupSlug,
         });
       }
       this.showToast(`Uninstalled ${mod.title}!`);
@@ -917,18 +966,29 @@ export class LauncherState {
 
     this.gameStatus = "launching";
     this.launchStatusText = "Initializing launch sequence...";
+    this.crashDetails = null;
+    this.hasManualCrash = false;
 
     try {
       await invoke("launch_game", { instanceId: this.activeInstance.id });
     } catch (e: any) {
-      this.gameStatus = "idle";
-      this.launchStatusText = `Launch failed: ${e}`;
-      this.showToast(`Error: ${e}`);
+      this.gameStatus = "crashed";
+      this.hasManualCrash = true;
+      const errStr = typeof e === "string" ? e : (e?.message || JSON.stringify(e));
+      this.launchStatusText = `Launch failed: ${errStr}`;
+      this.showToast(`Error: ${errStr}`);
+      try {
+        const lastCrash: CrashAnalysis | null = await invoke("get_last_crash_analysis");
+        if (lastCrash) {
+          this.crashDetails = lastCrash;
+        }
+      } catch (_) {}
     }
   }
 
   // --- Log & Crash Management ---
   get hasCrashDetected(): boolean {
+    if (this.hasManualCrash || this.crashDetails !== null) return true;
     return this.consoleLogs.some(l =>
       l.includes("CrashReport") ||
       l.includes("FATAL") ||
@@ -936,7 +996,8 @@ export class LauncherState {
       l.includes("Minecraft has crashed") ||
       l.includes("Shutting down with exit code 1") ||
       l.includes("Shutting down with exit code -1") ||
-      l.includes("Caused by:")
+      l.includes("Caused by:") ||
+      l.includes("[DV ERROR DETECTOR]")
     );
   }
 

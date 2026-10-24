@@ -41,6 +41,7 @@ pub struct ProcessSupervisor {
     pub output_tx: broadcast::Sender<String>,
     pub state_tx: broadcast::Sender<ProcessState>,
     is_running: Arc<AtomicBool>,
+    pub last_crash_analysis: Arc<Mutex<Option<super::error_detector::CrashAnalysis>>>,
 }
 
 impl Default for ProcessSupervisor {
@@ -59,7 +60,17 @@ impl ProcessSupervisor {
             output_tx,
             state_tx,
             is_running: Arc::new(AtomicBool::new(false)),
+            last_crash_analysis: Arc::new(Mutex::new(None)),
         }
+    }
+
+    pub async fn get_last_crash_analysis(&self) -> Option<super::error_detector::CrashAnalysis> {
+        self.last_crash_analysis.lock().await.clone()
+    }
+
+    pub async fn clear_last_crash_analysis(&self) {
+        let mut last = self.last_crash_analysis.lock().await;
+        *last = None;
     }
 
     pub fn is_active(&self) -> bool {
@@ -96,6 +107,7 @@ impl ProcessSupervisor {
         fs::create_dir_all(&logs_dir)?;
         let log_file = logs_dir.join("latest.log");
 
+        self.clear_last_crash_analysis().await;
         let _ = self.state_tx.send(ProcessState::Starting);
         self.is_running.store(true, Ordering::SeqCst);
 
@@ -141,6 +153,11 @@ impl ProcessSupervisor {
 
         let _ = self.state_tx.send(ProcessState::Running);
 
+        // Rolling buffer for automated error diagnostics
+        let rolling_buffer = Arc::new(Mutex::new(Vec::with_capacity(200)));
+        let rolling_stdout = rolling_buffer.clone();
+        let rolling_stderr = rolling_buffer.clone();
+
         // Spawn stream reader tasks
         let out_sender = self.output_tx.clone();
         let log_path_stdout = log_file.clone();
@@ -157,6 +174,13 @@ impl ProcessSupervisor {
 
                 while let Ok(Some(line)) = reader.next_line().await {
                     let sanitized = sanitize_text(&line);
+                    {
+                        let mut rb = rolling_stdout.lock().await;
+                        if rb.len() >= 200 {
+                            rb.remove(0);
+                        }
+                        rb.push(sanitized.clone());
+                    }
                     if let Some(ref mut f) = file {
                         let _ = writeln!(f, "{}", sanitized);
                     }
@@ -177,10 +201,18 @@ impl ProcessSupervisor {
 
                 while let Ok(Some(line)) = reader.next_line().await {
                     let sanitized = sanitize_text(&line);
-                    if let Some(ref mut f) = file {
-                        let _ = writeln!(f, "[STDERR] {}", sanitized);
+                    let err_line = format!("[STDERR] {}", sanitized);
+                    {
+                        let mut rb = rolling_stderr.lock().await;
+                        if rb.len() >= 200 {
+                            rb.remove(0);
+                        }
+                        rb.push(err_line.clone());
                     }
-                    let _ = err_sender.send(format!("[STDERR] {}\n", sanitized));
+                    if let Some(ref mut f) = file {
+                        let _ = writeln!(f, "{}", err_line);
+                    }
+                    let _ = err_sender.send(format!("{}\n", err_line));
                 }
             }
         });
@@ -210,9 +242,17 @@ impl ProcessSupervisor {
             let _ = self.state_tx.send(ProcessState::Exited(0));
         } else {
             error!("Game process exited with error code: {}", code);
+            let recent_lines = rolling_buffer.lock().await.clone();
+            let analysis = super::error_detector::ErrorDetector::analyze(code, &recent_lines, &game_dir);
+            let ansi_summary = analysis.to_ansi_summary();
+            let _ = self.output_tx.send(ansi_summary);
             let _ = self
                 .output_tx
                 .send(format!("[DV] Process exited with code {}\n", code));
+            {
+                let mut last = self.last_crash_analysis.lock().await;
+                *last = Some(analysis);
+            }
             let _ = self.state_tx.send(ProcessState::Crashed(code));
         }
 

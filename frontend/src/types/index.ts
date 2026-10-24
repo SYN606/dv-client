@@ -69,6 +69,19 @@ export interface ModItem {
   icon_path: string | null;
   filename?: string;
   clean_name?: string;
+  mod_id?: string | null;
+  project_id?: string | null;
+  slug?: string | null;
+}
+
+export interface CrashAnalysis {
+  exit_code: number;
+  category: string;
+  headline: string;
+  explanation: string;
+  recommended_action: string;
+  log_excerpt: string;
+  crash_report_path: string | null;
 }
 
 export interface DownloadProgress {

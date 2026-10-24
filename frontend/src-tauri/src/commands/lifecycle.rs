@@ -78,12 +78,31 @@ pub async fn launch_game(
         j.path.clone()
     } else {
         state.is_launching.store(false, Ordering::SeqCst);
-        let req_name = if req_ver == 8 { "Java 8" } else { "Java 21" };
+        let req_name = match req_ver {
+            8 => "Java 8",
+            16 | 17 => "Java 17",
+            _ => "Java 21",
+        };
         return Err(format!(
             "Required Java version ({}) not found for Minecraft {}. Please install it via Settings.",
             req_name, inst.minecraft_version
         ));
     };
+
+    // Strict validation: Verify the chosen Java binary meets Minecraft's minimum major version requirement
+    if let Some(inspected) = JavaDetector::inspect_executable(&java_path) {
+        if inspected.major_version < req_ver {
+            state.is_launching.store(false, Ordering::SeqCst);
+            return Err(format!(
+                "Incompatible Java version: Selected runtime '{}' is Java {}, but Minecraft {} strictly requires Java {} (or newer). Please select or install Java {} in Settings.",
+                java_path.display(),
+                inspected.major_version,
+                inst.minecraft_version,
+                req_ver,
+                req_ver
+            ));
+        }
+    }
 
     let inst_dir = inst.instance_dir(config_clone.instances_dir());
     let game_dir = inst.game_dir(config_clone.instances_dir());
@@ -206,47 +225,104 @@ pub async fn launch_game(
     let _ = app_handle.emit("launch-status", "Launching Minecraft JVM...");
 
     let sup = state.supervisor.clone();
-    match sup.launch_with_env(command_args, game_dir, gpu_env).await {
-        Ok(_) => {
-            state.is_launching.store(false, Ordering::SeqCst);
-            let _ = app_handle.emit("launch-status", "Game is running!");
+    let app_handle_bg = app_handle.clone();
+    let bg_game_dir = game_dir.clone();
+    let on_launch = config_clone.on_launch_action.clone();
+    let is_launching = state.is_launching.clone();
 
-            // Update last_played on instance
-            {
-                let mgr = state.instance_mgr.lock().await;
-                if let Some(mut inst_mut) = mgr.instances.get(&inst.id).cloned() {
-                    let now = std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs();
-                    inst_mut.last_played = Some(now);
-                    let _ = mgr.save_instance(&inst_mut);
+    // Spawn supervisor execution in background task
+    tokio::spawn(async move {
+        let launch_res = sup.launch_with_env(command_args, bg_game_dir, gpu_env).await;
+        is_launching.store(false, Ordering::SeqCst);
+
+        match launch_res {
+            Ok(0) => {
+                let _ = app_handle_bg.emit("game-state-change", "finished");
+                let _ = app_handle_bg.emit("launch-status", "Game process exited normally.");
+            }
+            Ok(code) => {
+                let analysis = sup.get_last_crash_analysis().await;
+                let _ = app_handle_bg.emit("game-state-change", "crashed");
+                if let Some(ref a) = analysis {
+                    let _ = app_handle_bg.emit("game-crashed", serde_json::to_value(a).unwrap_or_default());
+                    let _ = app_handle_bg.emit("launch-status", format!("Crash: {}", a.headline));
+                } else {
+                    let _ = app_handle_bg.emit("launch-status", format!("Process crashed with code {}", code));
+                }
+
+                // If window was hidden on launch, restore it on crash
+                if on_launch == "hide" {
+                    if let Some(win) = app_handle_bg.get_webview_window("main") {
+                        let _ = win.show();
+                        let _ = win.set_focus();
+                    }
                 }
             }
-
-            // Window on-launch action
-            if config_clone.on_launch_action == "hide" {
-                if let Some(win) = app_handle.get_webview_window("main") {
-                    let _ = win.hide();
-                }
-            } else if config_clone.on_launch_action == "close" {
-                app_handle.exit(0);
+            Err(e) => {
+                let _ = app_handle_bg.emit("game-state-change", "crashed");
+                let _ = app_handle_bg.emit("launch-status", format!("Launch failed: {}", e));
             }
-
-            Ok(())
         }
-        Err(e) => {
-            state.is_launching.store(false, Ordering::SeqCst);
-            let _ = app_handle.emit("launch-status", format!("Launch failed: {}", e));
-            Err(format!("Execution failed: {}", e))
+    });
+
+    // Startup health check: wait briefly to detect immediate early crashes
+    tokio::time::sleep(std::time::Duration::from_millis(1200)).await;
+
+    // Check if the process crashed immediately during startup
+    if !state.supervisor.is_active() {
+        state.is_launching.store(false, Ordering::SeqCst);
+        if let Some(analysis) = state.supervisor.get_last_crash_analysis().await {
+            let _ = app_handle.emit("game-state-change", "crashed");
+            let _ = app_handle.emit("game-crashed", serde_json::to_value(&analysis).unwrap_or_default());
+            return Err(format!(
+                "[{}]: {}. Suggested Fix: {}",
+                analysis.category, analysis.headline, analysis.recommended_action
+            ));
+        } else {
+            return Err("Minecraft process terminated immediately upon spawning. Check Live Console for details.".to_string());
         }
     }
+
+    state.is_launching.store(false, Ordering::SeqCst);
+    let _ = app_handle.emit("launch-status", "Minecraft is currently running");
+    let _ = app_handle.emit("game-state-change", "running");
+
+    // Update last_played on instance
+    {
+        let mgr = state.instance_mgr.lock().await;
+        if let Some(mut inst_mut) = mgr.instances.get(&inst.id).cloned() {
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs();
+            inst_mut.last_played = Some(now);
+            let _ = mgr.save_instance(&inst_mut);
+        }
+    }
+
+    // Window on-launch action
+    if config_clone.on_launch_action == "hide" {
+        if let Some(win) = app_handle.get_webview_window("main") {
+            let _ = win.hide();
+        }
+    } else if config_clone.on_launch_action == "close" {
+        app_handle.exit(0);
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
 pub async fn stop_game(state: State<'_, AppState>) -> Result<(), String> {
     state.supervisor.terminate().await;
     Ok(())
+}
+
+#[tauri::command]
+pub async fn get_last_crash_analysis(
+    state: State<'_, AppState>,
+) -> Result<Option<dv_launcher::minecraft::CrashAnalysis>, String> {
+    Ok(state.supervisor.get_last_crash_analysis().await)
 }
 
 #[tauri::command]

@@ -18,6 +18,70 @@ pub struct ModEntry {
     pub file_size_display: String,
     pub is_enabled: bool,
     pub icon_path: Option<PathBuf>,
+    pub mod_id: Option<String>,
+    pub project_id: Option<String>,
+    pub slug: Option<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ModMetaRecord {
+    pub project_id: String,
+    pub slug: String,
+    pub title: String,
+    pub provider: String,
+}
+
+pub fn get_mods_meta_path<P: AsRef<Path>>(mods_dir: P) -> PathBuf {
+    mods_dir.as_ref().join(".dv_mods_meta.json")
+}
+
+pub fn load_mods_meta<P: AsRef<Path>>(
+    mods_dir: P,
+) -> std::collections::HashMap<String, ModMetaRecord> {
+    let p = get_mods_meta_path(mods_dir);
+    if p.exists() {
+        if let Ok(content) = fs::read_to_string(&p) {
+            if let Ok(map) = serde_json::from_str::<std::collections::HashMap<String, ModMetaRecord>>(&content) {
+                return map;
+            }
+        }
+    }
+    std::collections::HashMap::new()
+}
+
+pub fn record_installed_mod<P: AsRef<Path>>(
+    mods_dir: P,
+    file_name: &str,
+    project_id: &str,
+    slug: &str,
+    title: &str,
+    provider: &str,
+) {
+    let mut meta = load_mods_meta(mods_dir.as_ref());
+    let clean_file = file_name.trim_end_matches(".disabled");
+    meta.insert(
+        clean_file.to_string(),
+        ModMetaRecord {
+            project_id: project_id.to_string(),
+            slug: slug.to_string(),
+            title: title.to_string(),
+            provider: provider.to_string(),
+        },
+    );
+    let p = get_mods_meta_path(mods_dir);
+    if let Ok(json) = serde_json::to_string_pretty(&meta) {
+        let _ = fs::write(p, json);
+    }
+}
+
+pub fn unrecord_installed_mod<P: AsRef<Path>>(mods_dir: P, file_name: &str) {
+    let mut meta = load_mods_meta(mods_dir.as_ref());
+    let clean_file = file_name.trim_end_matches(".disabled");
+    meta.remove(clean_file);
+    let p = get_mods_meta_path(mods_dir);
+    if let Ok(json) = serde_json::to_string_pretty(&meta) {
+        let _ = fs::write(p, json);
+    }
 }
 
 /// Directory where extracted local mod icons and Modrinth mod logos are cached.
@@ -113,10 +177,10 @@ fn extract_icon_from_archive<R: std::io::Read + std::io::Seek>(
     None
 }
 
-/// Inspect a .jar file to extract rich metadata and icon from fabric.mod.json, mcmod.info, or META-INF/mods.toml.
+/// Inspect a .jar file to extract rich metadata, icon, and mod_id from fabric.mod.json, mcmod.info, or META-INF/mods.toml.
 pub fn inspect_mod_jar<P: AsRef<Path>>(
     path: P,
-) -> Option<(String, String, String, String, Option<PathBuf>)> {
+) -> Option<(String, String, String, String, Option<PathBuf>, Option<String>)> {
     let file = fs::File::open(path.as_ref()).ok()?;
     let mut archive = zip::ZipArchive::new(file).ok()?;
 
@@ -173,6 +237,11 @@ pub fn inspect_mod_jar<P: AsRef<Path>>(
             String::new()
         };
 
+        let mod_id = val
+            .get("id")
+            .and_then(|i| i.as_str())
+            .map(|s| s.to_string());
+
         let icon_candidate = val.get("icon").and_then(|i| {
             if let Some(s) = i.as_str() {
                 Some(s.to_string())
@@ -190,7 +259,7 @@ pub fn inspect_mod_jar<P: AsRef<Path>>(
             extract_icon_from_archive(&mut archive, icon_candidate.as_deref(), &cache_path);
 
         if !name.is_empty() {
-            return Some((name, version, desc, author, icon_path));
+            return Some((name, version, desc, author, icon_path, mod_id));
         }
     }
 
@@ -236,16 +305,68 @@ pub fn inspect_mod_jar<P: AsRef<Path>>(
                         .join(", ")
                 })
                 .unwrap_or_default();
+            let mod_id = m
+                .get("modid")
+                .and_then(|i| i.as_str())
+                .map(|s| s.to_string());
             let icon_candidate = m.get("logoFile").and_then(|l| l.as_str());
             let icon_path = extract_icon_from_archive(&mut archive, icon_candidate, &cache_path);
 
             if !name.is_empty() {
-                return Some((name, version, desc, author, icon_path));
+                return Some((name, version, desc, author, icon_path, mod_id));
             }
         }
     }
 
-    // 3. Fallback generic icon extraction
+    // 3. Try META-INF/mods.toml (Forge modern / NeoForge)
+    let mods_toml_content = {
+        if let Ok(mut mods_toml_file) = archive.by_name("META-INF/mods.toml") {
+            let mut content = String::new();
+            if std::io::Read::read_to_string(&mut mods_toml_file, &mut content).is_ok() {
+                Some(content)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    };
+
+    if let Some(content) = mods_toml_content {
+        let mut found_id = None;
+        let mut found_name = None;
+        let mut found_ver = None;
+        let mut found_desc = None;
+        for line in content.lines() {
+            let trimmed = line.trim();
+            if trimmed.starts_with("modId=") || trimmed.starts_with("modId =") {
+                if let Some((_, val)) = trimmed.split_once('=') {
+                    found_id = Some(val.trim().trim_matches('"').trim_matches('\'').to_string());
+                }
+            } else if trimmed.starts_with("displayName=") || trimmed.starts_with("displayName =") {
+                if let Some((_, val)) = trimmed.split_once('=') {
+                    found_name = Some(val.trim().trim_matches('"').trim_matches('\'').to_string());
+                }
+            } else if trimmed.starts_with("version=") || trimmed.starts_with("version =") {
+                if let Some((_, val)) = trimmed.split_once('=') {
+                    found_ver = Some(val.trim().trim_matches('"').trim_matches('\'').to_string());
+                }
+            } else if trimmed.starts_with("description=") || trimmed.starts_with("description =") {
+                if let Some((_, val)) = trimmed.split_once('=') {
+                    found_desc = Some(val.trim().trim_matches('"').trim_matches('\'').to_string());
+                }
+            }
+        }
+        if let Some(id) = found_id {
+            let name = found_name.unwrap_or_else(|| id.clone());
+            let version = found_ver.unwrap_or_default();
+            let desc = found_desc.unwrap_or_default();
+            let icon_path = extract_icon_from_archive(&mut archive, None, &cache_path);
+            return Some((name, version, desc, String::new(), icon_path, Some(id)));
+        }
+    }
+
+    // 4. Fallback generic icon extraction
     let icon_path = extract_icon_from_archive(&mut archive, None, &cache_path);
     if icon_path.is_some() {
         return Some((
@@ -254,6 +375,7 @@ pub fn inspect_mod_jar<P: AsRef<Path>>(
             String::new(),
             String::new(),
             icon_path,
+            None,
         ));
     }
 
@@ -269,6 +391,8 @@ pub fn scan_mods<P: AsRef<Path>>(mods_dir: P) -> Vec<ModEntry> {
         let _ = fs::create_dir_all(dir);
         return mods;
     }
+
+    let meta_map = load_mods_meta(dir);
 
     if let Ok(entries) = fs::read_dir(dir) {
         for entry in entries.flatten() {
@@ -296,7 +420,7 @@ pub fn scan_mods<P: AsRef<Path>>(mods_dir: P) -> Vec<ModEntry> {
             let file_size_display = format_file_size(file_size_bytes);
 
             // Attempt to inspect deep metadata from inside the jar
-            let (name, version, description, author, icon_path) =
+            let (name, version, description, author, icon_path, mod_id) =
                 if let Some(meta) = inspect_mod_jar(&path) {
                     if meta.0.is_empty() {
                         let base_name = if is_disabled {
@@ -307,7 +431,7 @@ pub fn scan_mods<P: AsRef<Path>>(mods_dir: P) -> Vec<ModEntry> {
                             file_name.trim_end_matches(".jar")
                         };
                         let (n, v) = parse_name_and_version(base_name);
-                        (n, v, meta.2, meta.3, meta.4)
+                        (n, v, meta.2, meta.3, meta.4, meta.5)
                     } else {
                         meta
                     }
@@ -320,8 +444,17 @@ pub fn scan_mods<P: AsRef<Path>>(mods_dir: P) -> Vec<ModEntry> {
                         file_name.trim_end_matches(".jar")
                     };
                     let (n, v) = parse_name_and_version(base_name);
-                    (n, v, String::new(), String::new(), None)
+                    (n, v, String::new(), String::new(), None, None)
                 };
+
+            let clean_file = file_name.trim_end_matches(".disabled");
+            let (project_id, slug) = if let Some(rec) = meta_map.get(clean_file) {
+                (Some(rec.project_id.clone()), Some(rec.slug.clone()))
+            } else if let Some(ref mid) = mod_id {
+                (None, Some(mid.clone()))
+            } else {
+                (None, None)
+            };
 
             mods.push(ModEntry {
                 file_name,
@@ -333,6 +466,9 @@ pub fn scan_mods<P: AsRef<Path>>(mods_dir: P) -> Vec<ModEntry> {
                 file_size_display,
                 is_enabled,
                 icon_path,
+                mod_id,
+                project_id,
+                slug,
             });
         }
     }

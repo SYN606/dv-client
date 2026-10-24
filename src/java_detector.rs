@@ -220,17 +220,11 @@ impl JavaDetector {
                 .min_by_key(|j| j.major_version)
                 .or_else(|| runtimes.iter().min_by_key(|j| j.major_version))
         } else if required_major <= 17 {
-            // For 1.17 - 1.20.4, prefer 17, then >= 17
-            runtimes
-                .iter()
-                .find(|j| j.major_version >= 17)
-                .or_else(|| runtimes.iter().max_by_key(|j| j.major_version))
+            // For 1.17 - 1.20.4, require Java 17 or newer (do NOT fall back to Java 8)
+            runtimes.iter().find(|j| j.major_version >= 17)
         } else {
-            // For 1.20.5+, require >= 21
-            runtimes
-                .iter()
-                .find(|j| j.major_version >= 21)
-                .or_else(|| runtimes.iter().max_by_key(|j| j.major_version))
+            // For 1.20.5+, strictly require Java 21 or newer (do NOT fall back to Java 8 or 17)
+            runtimes.iter().find(|j| j.major_version >= 21)
         }
     }
 

@@ -92,6 +92,7 @@ pub async fn delete_mod(
     if alt_target.exists() {
         let _ = std::fs::remove_file(&alt_target);
     }
+    dv_launcher::instances::unrecord_installed_mod(&mods_dir, &filename);
     Ok(())
 }
 
@@ -99,6 +100,8 @@ pub async fn delete_mod(
 pub async fn install_modrinth_mod(
     instance_id: String,
     project_id: String,
+    slug: Option<String>,
+    title: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     let mgr = state.instance_mgr.lock().await;
@@ -112,10 +115,23 @@ pub async fn install_modrinth_mod(
     let loader = inst.mod_loader.clone();
 
     let client = ModrinthClient::new();
-    client
+    let file_name = client
         .install_mod(&project_id, &mc_ver, &loader, &mods_dir)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    let eff_slug = slug.unwrap_or_else(|| project_id.clone());
+    let eff_title = title.unwrap_or_else(|| eff_slug.clone());
+    dv_launcher::instances::record_installed_mod(
+        &mods_dir,
+        &file_name,
+        &project_id,
+        &eff_slug,
+        &eff_title,
+        "modrinth",
+    );
+
+    Ok(file_name)
 }
 
 #[tauri::command]
@@ -147,6 +163,8 @@ pub async fn search_curseforge(
 pub async fn install_curseforge_mod(
     instance_id: String,
     mod_id: u64,
+    slug: Option<String>,
+    title: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<String, String> {
     let mgr = state.instance_mgr.lock().await;
@@ -160,10 +178,24 @@ pub async fn install_curseforge_mod(
     let loader = inst.mod_loader.clone();
 
     let client = CurseForgeClient::new();
-    client
+    let file_name = client
         .install_mod(mod_id, &mc_ver, &loader, &mods_dir)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+
+    let project_id_str = mod_id.to_string();
+    let eff_slug = slug.unwrap_or_else(|| project_id_str.clone());
+    let eff_title = title.unwrap_or_else(|| eff_slug.clone());
+    dv_launcher::instances::record_installed_mod(
+        &mods_dir,
+        &file_name,
+        &project_id_str,
+        &eff_slug,
+        &eff_title,
+        "curseforge",
+    );
+
+    Ok(file_name)
 }
 
 #[tauri::command]
@@ -284,26 +316,54 @@ pub async fn uninstall_modrinth_mod(
         return Ok(false);
     }
 
-    let clean_slug = slug.to_lowercase().replace('-', "_");
-    let slug_dash = slug.to_lowercase().replace('_', "-");
+    let meta_map = dv_launcher::instances::load_mods_meta(&mods_dir);
+    let mut target_files: Vec<String> = Vec::new();
+
+    // 1. Exact match via recorded metadata (by slug or project_id)
+    for (file, rec) in &meta_map {
+        if rec.slug.eq_ignore_ascii_case(&slug) || rec.project_id.eq_ignore_ascii_case(&slug) {
+            target_files.push(file.clone());
+        }
+    }
+
     let mut removed = false;
+    for tf in &target_files {
+        let p = mods_dir.join(tf);
+        if p.exists() && std::fs::remove_file(&p).is_ok() {
+            removed = true;
+        }
+        let p_dis = mods_dir.join(format!("{}.disabled", tf));
+        if p_dis.exists() && std::fs::remove_file(&p_dis).is_ok() {
+            removed = true;
+        }
+        dv_launcher::instances::unrecord_installed_mod(&mods_dir, tf);
+    }
 
-    if let Ok(entries) = std::fs::read_dir(&mods_dir) {
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if !path.is_file() {
-                continue;
-            }
-            let name = match path.file_name().and_then(|n| n.to_str()) {
-                Some(n) => n.to_lowercase(),
-                None => continue,
-            };
+    // 2. Strict prefix fallback: ONLY match prefix followed by '-' or '_' or exact jar, NEVER loose substring!
+    if !removed {
+        let slug_dash = slug.to_lowercase().replace('_', "-");
+        let slug_under = slug.to_lowercase().replace('-', "_");
+        if let Ok(entries) = std::fs::read_dir(&mods_dir) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if !path.is_file() {
+                    continue;
+                }
+                let name = match path.file_name().and_then(|n| n.to_str()) {
+                    Some(n) => n.to_lowercase(),
+                    None => continue,
+                };
 
-            if (name.contains(&clean_slug) || name.contains(&slug_dash))
-                && (name.ends_with(".jar") || name.ends_with(".disabled"))
-            {
-                if std::fs::remove_file(entry.path()).is_ok() {
-                    removed = true;
+                let is_exact_match = name.starts_with(&format!("{}-", slug_dash))
+                    || name.starts_with(&format!("{}_", slug_under))
+                    || name == format!("{}.jar", slug_dash)
+                    || name == format!("{}.jar.disabled", slug_dash);
+
+                if is_exact_match {
+                    if std::fs::remove_file(&path).is_ok() {
+                        removed = true;
+                        dv_launcher::instances::unrecord_installed_mod(&mods_dir, &name);
+                    }
                 }
             }
         }

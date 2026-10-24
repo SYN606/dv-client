@@ -102,10 +102,10 @@
 
 ## Verified SHA-256 Checksums (v1.0.0)
 ```text
-b852051b309b60e0eb9569ba56ac18fd7c13fb67d9efdbadf9ae0b5405fec6b9  DigitalVigital-Setup-1.0.0.exe
-69b6903df5a55ee5d3a9723f22394687f9714dd18c98d8486eec9ddb2e1248cc  dist/DigitalVigital-v1.0.0-windows-x64-portable.zip
-2f4be00a14b2f6cf3560f14aa24072f00c8ea7a2a2a1c1464e6690abc16c9c67  DigitalVigitalLauncher.exe
-2f4be00a14b2f6cf3560f14aa24072f00c8ea7a2a2a1c1464e6690abc16c9c67  dv-launcher-app.exe
+b7386915fcaba62f6b56b96814119635dd253fe486bdefca8880e3983f5e44d9  DigitalVigital-Setup-1.0.0.exe
+9b16832bc951ea2eb36aed569e9f57953a9776f4fb0ab58763a13d2fd25291ad  dist/DigitalVigital-v1.0.0-windows-x64-portable.zip
+718b4edf99ccb80c39a31ee1835f5e1bd5efbc54c241b11c27025f1f549f7886  DigitalVigitalLauncher.exe
+718b4edf99ccb80c39a31ee1835f5e1bd5efbc54c241b11c27025f1f549f7886  dv-launcher-app.exe
 ```
 
 ---

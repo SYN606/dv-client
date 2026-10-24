@@ -168,9 +168,20 @@ impl LaunchArgumentBuilder {
             args.extend(get_performance_jvm_flags(preset));
         }
 
-        // 4. Custom user JVM flags
+        // 4. Custom user JVM flags (with whitespace and -Dkey=value normalization)
         if let Some(ref custom_args) = ctx.custom_jvm_args {
-            args.extend(custom_args.clone());
+            for arg in custom_args {
+                let trimmed = arg.trim();
+                if !trimmed.is_empty() {
+                    if trimmed.starts_with("-D") {
+                        if let Some((k, v)) = trimmed.split_once('=') {
+                            args.push(format!("{}={}", k.trim(), v.trim()));
+                            continue;
+                        }
+                    }
+                    args.push(trimmed.to_string());
+                }
+            }
         }
 
         let natives_dir = dunce::simplified(&ctx.instance_dir.join("natives")).to_path_buf();
@@ -739,7 +750,7 @@ mod tests {
             window_width: 1280,
             window_height: 720,
             custom_jvm_args: Some(vec![
-                "-DFabricMcEmu= net.minecraft.client.main.Main ".to_string()
+                "-DFabricMcEmu=net.minecraft.client.main.Main".to_string()
             ]),
             performance_preset: None,
             mod_loader: "fabric".to_string(),
@@ -760,7 +771,7 @@ mod tests {
             "net.minecraft.client.main.Main"
         );
         // Verify Fabric JVM emulator flag is included
-        assert!(args.contains(&"-DFabricMcEmu= net.minecraft.client.main.Main ".to_string()));
+        assert!(args.contains(&"-DFabricMcEmu=net.minecraft.client.main.Main".to_string()));
         // Verify gameDir is present
         assert!(args.contains(&"--gameDir".to_string()));
         // Verify classpath contains the fabric jar

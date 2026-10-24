@@ -306,15 +306,21 @@ impl ModLoaderClient {
 
                 if let Some(ref args) = profile.arguments {
                     if let Some(ref jvm) = args.jvm {
-                        info.extra_jvm_args.extend(jvm.clone());
+                        for j in jvm {
+                            let trimmed = j.trim();
+                            if !trimmed.is_empty() {
+                                info.extra_jvm_args.push(trimmed.to_string());
+                            }
+                        }
                     }
                     if let Some(ref game) = args.game {
-                        info.extra_game_args.extend(game.clone());
+                        for g in game {
+                            let trimmed = g.trim();
+                            if !trimmed.is_empty() {
+                                info.extra_game_args.push(trimmed.to_string());
+                            }
+                        }
                     }
-                }
-                if info.extra_jvm_args.is_empty() {
-                    info.extra_jvm_args
-                        .push("-DFabricMcEmu= net.minecraft.client.main.Main ".to_string());
                 }
 
                 // Download libraries into shared libraries dir
