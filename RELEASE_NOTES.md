@@ -90,22 +90,34 @@
 
 ---
 
+### 📦 Clean-Machine Compatibility & WebView2 Bundling
+- **Native `WebView2Loader.dll` Bundled**:
+  - Automatically ships `WebView2Loader.dll` alongside the executables, inside the NSIS installer (`DigitalVigital-Setup-1.0.0.exe`), and within the portable zip archive.
+  - Guarantees seamless launching on clean Windows test machines without triggering `0xC0000135` ("WebView2Loader.dll was not found") or requiring manual DLL installations.
+
+### 🛡️ Smart Crash Diagnostics & Mod Installation Verification
+- **Bytecode & JVM Compatibility Engine**: Automatically decodes Minecraft launch crashes (such as `UnsupportedClassVersionError 65.0 vs 52.0`) and immediately presents 1-click solutions ("Open Java Settings") directly in the Play tab UI.
+- **Accurate Mod Verification via Modrinth Project ID / UUID**: Verifies installed mods by exact Modrinth project ID, slug, and file pattern, preventing false positive "Installed" indicators (e.g. installing *Sodium* no longer falsely marks *Sodium Extra* or *Sodium Chloride* as installed).
+
+---
+
 ## Downloads & Available Packages (v1.0.0)
 
 | Package | Size | Description |
 | :--- | :---: | :--- |
-| [**`DigitalVigital-Setup-1.0.0.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-Setup-1.0.0.exe) | **~10.4 MB** | **Windows NSIS Setup**: Interactive installer with custom drive selection, Start Menu & Desktop shortcuts, clean uninstaller, and Add/Remove Programs registration. |
-| [**`DigitalVigital-v1.0.0-windows-x64-portable.zip`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-v1.0.0-windows-x64-portable.zip) | **~14.5 MB** | **Portable Standalone Package**: Contains `DigitalVigitalLauncher.exe`, `dv-launcher-app.exe`, assets, and documentation. No installation required. |
+| [**`DigitalVigital-Setup-1.0.0.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-Setup-1.0.0.exe) | **~10.5 MB** | **Windows NSIS Setup**: Interactive installer with custom drive selection, Start Menu & Desktop shortcuts, clean uninstaller, bundled WebView2Loader, and Add/Remove Programs registration. |
+| [**`DigitalVigital-v1.0.0-windows-x64-portable.zip`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-v1.0.0-windows-x64-portable.zip) | **~14.6 MB** | **Portable Standalone Package**: Contains `DigitalVigitalLauncher.exe`, `dv-launcher-app.exe`, `WebView2Loader.dll`, assets, and documentation. No installation required. |
 | [**`DigitalVigitalLauncher.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigitalLauncher.exe) | **41 MB** | **Direct Executable**: Standalone Windows executable with embedded primary icon resource (`1 ICON`). |
 
 ---
 
 ## Verified SHA-256 Checksums (v1.0.0)
 ```text
-b7386915fcaba62f6b56b96814119635dd253fe486bdefca8880e3983f5e44d9  DigitalVigital-Setup-1.0.0.exe
-9b16832bc951ea2eb36aed569e9f57953a9776f4fb0ab58763a13d2fd25291ad  dist/DigitalVigital-v1.0.0-windows-x64-portable.zip
+5961c90b0af65b77d4272ece3b4502b45a49b81664797aaf5cff7731ebeabc75  DigitalVigital-Setup-1.0.0.exe
+44fc5c985b9cc89f0f09ebdab9934a3520b434699634fcc54a894bd30abdb2ef  DigitalVigital-v1.0.0-windows-x64-portable.zip
 718b4edf99ccb80c39a31ee1835f5e1bd5efbc54c241b11c27025f1f549f7886  DigitalVigitalLauncher.exe
 718b4edf99ccb80c39a31ee1835f5e1bd5efbc54c241b11c27025f1f549f7886  dv-launcher-app.exe
+86545b66cdb0603bc26b626fb9ad610cb6e71f28d468f5ea66df23b03dda96d5  WebView2Loader.dll
 ```
 
 ---

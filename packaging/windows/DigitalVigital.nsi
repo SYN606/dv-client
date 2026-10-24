@@ -103,6 +103,7 @@ Section "MainSection" SEC01
 
     ; Application binary, assets & documentation
     File "/oname=${PRODUCT_EXE}" "..\..\dv-launcher-app.exe"
+    File "..\..\WebView2Loader.dll"
     File "..\..\assets\logo.png"
     File "..\..\assets\logo.ico"
     File "..\..\README.md"
@@ -139,6 +140,7 @@ SectionEnd
 Section "Uninstall"
     ; Remove application files
     Delete "$INSTDIR\${PRODUCT_EXE}"
+    Delete "$INSTDIR\WebView2Loader.dll"
     Delete "$INSTDIR\logo.png"
     Delete "$INSTDIR\logo.ico"
     Delete "$INSTDIR\README.md"

@@ -34,6 +34,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "..\..\dv-launcher-app.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\WebView2Loader.dll"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\assets\logo.png"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\assets\logo.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\README.md"; DestDir: "{app}"; Flags: ignoreversion
