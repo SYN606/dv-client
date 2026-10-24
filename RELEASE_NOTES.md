@@ -1,67 +1,111 @@
-# Digital Vigital (DV) Launcher - v1.2.1 Release Notes
+# Digital Vigital (DV) Launcher - v1.0.0 Release Notes
 
-**Digital Vigital (DV)** v1.2.1 introduces full **Multi-Java architecture (Java 8, Java 17, and Java 21)** with dynamic version matching for all Minecraft editions (legacy 1.8.9/1.12.2 to modern 1.21.4+), an automated 1-click Java 8 runtime installer, upgraded player profile switching with explicit active status badges, and professional manual profile management on fresh installs.
+**Digital Vigital (DV) Launcher v1.0.0** is the official milestone release — a ground-up, blazing-fast desktop Minecraft client engineered with an independent **Rust** backend, **Tauri v2**, and a modern **Svelte** UI. Built for pure performance, privacy, and zero bloat (no ads, no trackers, no paywalls), v1.0.0 brings multi-drive storage management, a 3D Skins & Capes Studio, automated crash reporting, and multi-Java runtime orchestration.
 
+---
 
-## What's New in v1.2.1
+## What's New in v1.0.0
 
-### ☕ Universal Java Support: Java 8 (Legacy) + Java 17 + Java 21 (Modern)
-- **Automatic Minecraft Version to Java Version Resolution**:
-  - **Minecraft ≤ 1.16.5** (1.8.9, 1.12.2, 1.16.5): Automatically matches **Java 8** (essential for Forge 1.8.9/1.12.2 to prevent JVM module crashing).
-  - **Minecraft 1.17 to 1.20.4**: Automatically matches **Java 17**.
-  - **Minecraft 1.20.5+** (1.20.5, 1.21.4): Automatically matches **Java 21**.
-- **1-Click Java 8 (Legacy) Automated Downloader**:
-  - Added dedicated **"Install Java 8"** button in Settings (Java & Memory).
-  - Downloads official **Eclipse Temurin OpenJDK 8 JRE** from Adoptium with automated fallback to direct binary releases.
-  - Installs cleanly into isolated `%APPDATA%\DigitalVigital\runtimes\java-8` without administrative elevation.
-- **Visual Java Version Badges**:
-  - Each detected runtime in the Settings list now displays a crisp major version badge: `[Java 8]`, `[Java 17]`, `[Java 21]` alongside path and vendor details.
-- **Dynamic Profile Java Association**:
-  - The launcher UI updates live when selecting a profile to display the exact auto-matched Java runtime (e.g. `Eclipse Temurin Java 8 (Auto for MC 1.8.9)`).
+### 🚀 Modern Desktop Architecture (Rust + Tauri v2 + Svelte)
+- **Blazing Fast Performance**: Sub-second startup times, minimal memory footprint (~40MB RAM), and instant UI responsiveness compared to heavy Electron-based launchers.
+- **Hardware Acceleration**: Automatic dedicated GPU detection (NVIDIA / AMD) with intelligent routing to prevent Minecraft from running on integrated graphics.
+- **Seamless Window Experience**: Native Windows borderless framing, drag areas, custom controls, and responsive layout across all display scalings.
 
-### 👤 Upgraded Player Profile Integration & Management
-- **Instant 1-Click Profile Switching**:
-  - Stored accounts in the Accounts tab now feature an **[ACTIVE]** badge on the selected account and an instant **[Set Active]** button on inactive accounts.
-  - Header and hero cards dynamically render account type badges (`[Microsoft]` in cyan or `[Offline]` in amber).
-- **Hero Card Player Showcase**:
-  - Displays avatar preview, active username, account type badge, cape status, and a quick **"Switch Account"** navigation button.
-  - Clean empty state with **"+ Add Player"** when no player account is configured yet.
-- **Accurate Launch Passing**:
-  - Player credentials, offline UUIDs, and Microsoft auth tokens are passed directly to Minecraft launch arguments with in-game skin pack sync.
+---
 
-### 🎯 Professional Fresh-Install Experience
-- **No Auto-Created Instances**:
-  - Fresh launcher installs no longer auto-create arbitrary Fabric instances.
-  - Displays a clean initial state with `"No Profile Selected"`, welcoming the user to pick or create their preferred Minecraft version and mod loader.
-- **Colored Loader Badges**:
-  - Profile cards and shelf entries show styled loader badges: Fabric (Cyan), Forge (Amber), Quilt (Purple), NeoForge (Coral), Vanilla (Emerald).
+### 💾 Multi-Drive Game & Instances Directory Management
+- **Never Fill Your C: Drive**: Complete freedom to store Minecraft versions, libraries, runtimes, assets, and modpacks on any drive (`D:`, `E:`, external SSDs, etc.).
+- **Independent Instances Directory**:
+  - Keep your core game assets on one disk and separate your heavy modpacks and save files onto a high-speed NVMe or secondary hard drive.
+  - Native file dialog pickers for both the **Base Game Directory** and the **Instances Directory**.
+  - 1-Click **"Reset Default"** and **"Open in File Explorer"** buttons for both directories in the Settings tab.
+  - Hot-reloads all instances and mod profiles dynamically without restarting the application.
 
+---
 
-## Downloads & Available Packages (v1.2.1)
+### 🎨 3D Skins & Capes Studio
+- **Real-Time 3D Stage**:
+  - Offline-capable 3D canvas powered by `skinview3d` with realistic studio lighting and ambient platform glow.
+  - **Direct Drag & Drop**: Drag and drop any `.png` skin or cape file directly onto the 3D model for instant preview and assignment.
+  - **Quick Camera Presets**: 1-click camera snaps for **Front**, **Back**, **Left Side**, **Right Side**, **360° Auto-Spin**, and **Reset View**.
+  - **Dynamic Physics & Poses**: Switch between **Walk**, **Run**, **Fly**, and **Idle** animations with a **Play/Pause** toggle and variable animation speed.
+  - **Arm Thickness Rigs**: Toggle between **Classic (4px)** and **Slim (3px / Alex)** models with live texture re-mapping.
+  - **Cape Visibility**: On-stage toggle to preview your character with or without equipped capes.
+- **Curated Skin Presets**:
+  - 1-Click equip for **Classic Steve**, **Cyber DV Agent** (Digital Vigital Elite), and **Ender Void Robe** (Voidwalker Series).
+- **Exclusive Capes Collection**:
+  - Equippable custom cosmetics with rarity badges:
+    - **DV Crimson & Gold** (Official Digital Vigital Velvet & Gold Insignia)
+    - **Founder Obsidian Gold** (VIP Founder Star)
+    - **Ender Void Eye** (The End Dimension)
+    - **Cyber Neon Circuit** (High-Tech Hex)
+- **Player Skin Lookup & Stealer**:
+  - Enter any Minecraft Java username to fetch their live skin texture directly from Mojang/Minotar.
+  - Includes 1-click shortcuts for popular creators (*Notch*, *Technoblade*, *MumboJumbo*, *Grian*, *DanTDM*, *CaptainSparklez*).
+- **Texture Export**: Download your active skin texture PNG with 1 click.
+
+---
+
+### ☕ Multi-Java Runtime Suite (Java 8, 17, 21)
+- **Automatic Version Resolution**:
+  - Minecraft ≤ 1.16.5: Automatically routes to **Java 8** (essential for Forge 1.8.9 / 1.12.2).
+  - Minecraft 1.17 – 1.20.4: Automatically routes to **Java 17**.
+  - Minecraft 1.20.5+: Automatically routes to **Java 21**.
+- **Automated 1-Click Java Installers**: Download and install Temurin OpenJDK runtimes directly into isolated launcher directories without requiring administrative rights.
+- **Custom Java Path Support**: Browse and select custom JVM installations with system architecture validation.
+
+---
+
+### 🛡️ Automated Crash Reporting & Live Console
+- **Direct Discord Webhook Integration**:
+  - When Minecraft crashes or encounters game startup failure, players can submit a 1-click report directly to the development Discord.
+  - Automatically packages execution logs, crash snippets, memory specs, GPU vendor, OS version, and active mod loader.
+- **Live Real-Time Console**:
+  - High-throughput ANSI log viewer with log export, automatic scrolling, and quick-filter diagnostics.
+
+---
+
+### 🔔 Update Notifier & Fresh Interface
+- **Automated Update Checker**: Checks GitHub Releases for new launcher versions and displays notifications with direct download links.
+- **Streamlined Navigation**:
+  - Tab bar: **Mod**, **Skins**, **Settings**, **Console**, **About**.
+- **Dedicated About Page**:
+  - Developed by **SYN 606** ([https://syn606.wtf](https://syn606.wtf)).
+  - Official Minecraft portal link: [https://digitalvigital.fun/minecraft](https://digitalvigital.fun/minecraft).
+  - Official Community Discord: [https://discord.gg/flex-dv](https://discord.gg/flex-dv).
+  - Cleaned up legacy SMP link references across the entire codebase.
+
+---
+
+### 💎 Visual Identity & Canonical Windows Resource Icon
+- **New Cube Logo**: High-resolution obsidian, ruby, and gold cube branding across all assets (16x16, 32x32, 48x48, 64x64, 128x128, 256x256, 512x512).
+- **Windows PE Resource Fix**:
+  - Embedded canonical **`1 ICON` (`MAINICON`)** and `32512 ICON` directly into the PE `.rsrc` table, ensuring Windows Explorer, taskbar, Alt-Tab, and desktop shortcuts display the custom logo instead of default framework icons.
+
+---
+
+## Downloads & Available Packages (v1.0.0)
 
 | Package | Size | Description |
 | :--- | :---: | :--- |
-| [**`DigitalVigital-Setup-1.2.1.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.2.1/DigitalVigital-Setup-1.2.1.exe) | **7.8 MB** | **Windows NSIS Installer**: Supports custom drive selection (`C:`, `D:`, `E:`), Start Menu & Desktop shortcuts, clean uninstaller, Windows Add/Remove Programs registration, and pixel-art branding. |
-| [**`DigitalVigital-v1.2.1-windows-x64-portable.zip`**](https://github.com/SYN606/dv-client/releases/download/v1.2.1/DigitalVigital-v1.2.1-windows-x64-portable.zip) | **10.6 MB** | **Standalone Portable Bundle**: Includes `dv-launcher.exe`, high-res logos (`.png`, `.ico`), `README.md`, and `LICENSE` for plug-and-play usage without installation. |
+| [**`DigitalVigital-Setup-1.0.0.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-Setup-1.0.0.exe) | **~10.5 MB** | **Windows NSIS Setup**: Interactive installer with custom drive selection, Start Menu & Desktop shortcuts, clean uninstaller, and Add/Remove Programs registration. |
+| [**`DigitalVigital-v1.0.0-windows-x64-portable.zip`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-v1.0.0-windows-x64-portable.zip) | **~28.5 MB** | **Portable Standalone Package**: Contains `DigitalVigitalLauncher.exe`, `dv-launcher-app.exe`, assets, and documentation. No installation required. |
+| [**`DigitalVigitalLauncher.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigitalLauncher.exe) | **41 MB** | **Direct Executable**: Standalone Windows executable with embedded primary icon resource (`1 ICON`). |
 
+---
 
-## Verified SHA-256 Checksums (v1.2.1)
+## Verified SHA-256 Checksums (v1.0.0)
 ```text
-fd5bff6124777bda4649ac54a5503fd7a6e10721f97f956d07dc2193cef4264a  DigitalVigital-Setup-1.2.1.exe
-5fe14ec08a5c21d0cf35e9bd4ab8ceafc10c03c1d651f451d5e08b0771ccc2ad  DigitalVigital-v1.2.1-windows-x64-portable.zip
-0f0eff199a805f1a4c59a70db216a3819ed2bd05e9498443493734b19192c54b  dv-launcher.exe
+9ef1785633d6277502ddc8e9d76076c436e66e43775e0432a439d7217c5e5c56  DigitalVigital-Setup-1.0.0.exe
+a447418dd1d025060acb56289d4b294f172c6a598e47bfe606a87d512dbe6a33  DigitalVigital-v1.0.0-windows-x64-portable.zip
+dcc6e49e2544ef82db4a133a43fc8cb67bbf5fba2fdfbcb7014d413ea653ef23  DigitalVigitalLauncher.exe
+dcc6e49e2544ef82db4a133a43fc8cb67bbf5fba2fdfbcb7014d413ea653ef23  dv-launcher-app.exe
 ```
 
+---
 
-# Previous Releases
-
-## Digital Vigital (DV) Launcher - v1.2.0 Release Notes
-
-**Digital Vigital (DV)** v1.2.0 introduces 1-click automated Java 21 runtime installation, modern JVM argument evaluation, Quilt profile support, Microsoft OAuth keyring auto-refresh, and revamped obsidian & ruby pixel-art branding.
-
-### What's New in v1.2.0
-- **One-Click Automated Java 21 Installer (Windows)**: Adoptium OpenJDK 21 JRE download & extraction into isolated runtimes directory.
-- **Modern Minecraft 1.13+ JVM Evaluation**: Complete Mojang argument engine with variable replacement and CPU architecture matching.
-- **Microsoft OAuth Session Auto-Refresh**: Seamless token refresh via OS keyring vault.
-- **Expanded Mod Loader Compatibility**: Quilt profile resolution and OptiFine diagnostics.
-- **Obsidian & Ruby Pixel-Art Branding**: Multi-resolution Windows icon (`logo.ico`).
+## System Requirements
+- **Operating System**: Windows 10 (1809+) or Windows 11 (64-bit)
+- **Webview Runtime**: Microsoft Edge WebView2 (preinstalled on modern Windows)
+- **Memory**: 4 GB RAM minimum (8 GB+ recommended for modded Minecraft)
+- **Storage**: 200 MB for launcher base installation; user-configurable drive for instances & cache
