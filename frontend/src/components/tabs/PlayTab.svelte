@@ -12,6 +12,11 @@
     Server,
     Copy,
     ArrowUpRight,
+    AlertTriangle,
+    Send,
+    Loader2,
+    Check,
+    Terminal,
   } from "lucide-svelte";
 
   let copiedIp = $state(false);
@@ -115,6 +120,60 @@
         </div>
       {/if}
     </div>
+
+    <!-- Crash / Error Alert Card -->
+    {#if launcher.gameStatus === "crashed" || launcher.hasCrashDetected}
+      <div
+        class="relative z-10 p-4 rounded-2xl bg-rose-950/60 border border-rose-500/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xl"
+      >
+        <div class="flex items-center gap-3">
+          <div
+            class="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0"
+          >
+            <AlertTriangle class="w-5 h-5" />
+          </div>
+          <div>
+            <div class="text-sm font-bold text-white flex items-center gap-2">
+              <span>Minecraft Exited Unexpectedly or Crashed</span>
+              <span
+                class="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-black uppercase"
+                >Alert</span
+              >
+            </div>
+            <p class="text-xs text-neutral-300 mt-0.5">
+              Press Report to transmit crash logs and system diagnostics for automated analysis.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 w-full sm:w-auto shrink-0">
+          <button
+            onclick={() => launcher.reportCrash()}
+            disabled={launcher.isReportingCrash}
+            class="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg shadow-rose-600/30"
+          >
+            {#if launcher.isReportingCrash}
+              <Loader2 class="w-3.5 h-3.5 animate-spin" />
+              <span>Reporting...</span>
+            {:else if launcher.crashReportSuccess}
+              <Check class="w-3.5 h-3.5 text-emerald-300" />
+              <span>Reported!</span>
+            {:else}
+              <Send class="w-3.5 h-3.5" />
+              <span>Report Crash</span>
+            {/if}
+          </button>
+
+          <button
+            onclick={() => (launcher.activeTab = "console")}
+            class="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-200 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-white/10"
+          >
+            <Terminal class="w-3.5 h-3.5" />
+            <span>View Console</span>
+          </button>
+        </div>
+      </div>
+    {/if}
 
     <!-- Bottom Launch Area -->
     <div

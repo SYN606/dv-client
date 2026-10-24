@@ -337,3 +337,245 @@ pub async fn export_logs(content: String) -> Result<Option<String>, String> {
 
     Ok(file)
 }
+
+pub const DISCORD_CRASH_WEBHOOK_URL: &str =
+    "https://discord.com/api/webhooks/1563426682088722504/G5FHous4s_1Hfvge2Wjf9zaqSbHvdqxm73H0BZBfRowmPbh-qBQn_WlZ1HXTCjNd0eaY";
+
+#[tauri::command]
+pub async fn report_crash(
+    logs: String,
+    crash_snippet: Option<String>,
+    instance_id: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    // 1. Resolve Account Info
+    let (username, account_type) = {
+        let auth = state.auth_client.lock().await;
+        let cm = state.config_mgr.lock().await;
+        let active_id = cm.config.active_account_id.as_deref();
+        if let Some(acc) = active_id.and_then(|id| auth.accounts.get(id)) {
+            (acc.username.clone(), acc.account_type.clone())
+        } else if let Some(first) = auth.accounts.values().next() {
+            (first.username.clone(), first.account_type.clone())
+        } else {
+            ("Offline Player".to_string(), "offline".to_string())
+        }
+    };
+
+    // 2. Resolve Instance & Profile Info
+    let (inst_name, mc_ver, mod_loader, ram_str, java_str, disk_logs) = {
+        let mgr = state.instance_mgr.lock().await;
+        let cm = state.config_mgr.lock().await;
+        let target_id = instance_id.or_else(|| cm.config.active_instance_id.clone());
+        let target = match target_id {
+            Some(ref id) => mgr.instances.get(id).cloned(),
+            None => None,
+        };
+
+        if let Some(inst) = target {
+            let loader_str = if let Some(ver) = &inst.loader_version {
+                format!("{} {}", inst.mod_loader, ver)
+            } else {
+                inst.mod_loader.clone()
+            };
+            let ram = format!("{} MB - {} MB", inst.min_memory_mb, inst.max_memory_mb);
+            let java = inst
+                .custom_java_path
+                .as_ref()
+                .map(|p| p.display().to_string())
+                .unwrap_or_else(|| "Default Managed Java".to_string());
+
+            let mut disk_content = String::new();
+            let log_file = inst
+                .game_dir(cm.config.instances_dir())
+                .join("logs")
+                .join("latest.log");
+            if log_file.exists() {
+                if let Ok(c) = std::fs::read_to_string(&log_file) {
+                    disk_content = c;
+                }
+            }
+
+            (
+                inst.name.clone(),
+                inst.minecraft_version.clone(),
+                loader_str,
+                ram,
+                java,
+                disk_content,
+            )
+        } else {
+            (
+                "Default Profile".to_string(),
+                "Unknown".to_string(),
+                "vanilla".to_string(),
+                "2048 MB - 4096 MB".to_string(),
+                "Default Java".to_string(),
+                String::new(),
+            )
+        }
+    };
+
+    // 3. Resolve GPU Info
+    let gpu_name = {
+        let cm = state.config_mgr.lock().await;
+        let gpus = GpuDetector::detect_gpus();
+        if let Some(sel) = cm.config.selected_gpu.as_deref() {
+            gpus.iter()
+                .find(|g| g.id == sel)
+                .map(|g| g.name.clone())
+                .unwrap_or_else(|| sel.to_string())
+        } else {
+            gpus.iter()
+                .find(|g| g.is_discrete)
+                .or_else(|| gpus.first())
+                .map(|g| g.name.clone())
+                .unwrap_or_else(|| "Standard GPU".to_string())
+        }
+    };
+
+    // 4. Resolve Logs & Snippet
+    let full_logs = if !logs.trim().is_empty() {
+        logs
+    } else if !disk_logs.trim().is_empty() {
+        disk_logs
+    } else {
+        "No live or disk logs available at report time.".to_string()
+    };
+
+    let snippet_text = if let Some(snip) = crash_snippet.filter(|s| !s.trim().is_empty()) {
+        snip
+    } else {
+        let lines: Vec<&str> = full_logs.lines().collect();
+        let error_lines: Vec<&str> = lines
+            .iter()
+            .copied()
+            .filter(|l| {
+                l.contains("ERROR")
+                    || l.contains("FATAL")
+                    || l.contains("Exception")
+                    || l.contains("CrashReport")
+                    || l.contains("at ")
+            })
+            .take(30)
+            .collect();
+
+        if !error_lines.is_empty() {
+            error_lines.join("\n")
+        } else {
+            lines
+                .iter()
+                .rev()
+                .take(25)
+                .rev()
+                .copied()
+                .collect::<Vec<_>>()
+                .join("\n")
+        }
+    };
+
+    let truncated_snippet = if snippet_text.len() > 1800 {
+        format!(
+            "{}...\n[Truncated - see attached crash.log for full output]",
+            &snippet_text[..1800]
+        )
+    } else if snippet_text.trim().is_empty() {
+        "No crash stack trace snippet available.".to_string()
+    } else {
+        snippet_text
+    };
+
+    // 5. Build Discord Embed
+    let os_info = format!("{} ({})", std::env::consts::OS, std::env::consts::ARCH);
+    let launcher_ver = format!("Digital Vigital v{}", dv_launcher::branding::APP_VERSION);
+    let now_iso = chrono::Utc::now().to_rfc3339();
+
+    let embed = serde_json::json!({
+        "title": "🚨 Minecraft Crash & Diagnostics Report",
+        "description": format!("```text\n{}\n```", truncated_snippet),
+        "color": 14753096, // 0xE11D48 (Rose 600)
+        "fields": [
+            {
+                "name": "👤 Player / User",
+                "value": format!("**{}** (`{}`)", username, account_type),
+                "inline": true
+            },
+            {
+                "name": "💻 Operating System",
+                "value": os_info,
+                "inline": true
+            },
+            {
+                "name": "🎮 Launcher Version",
+                "value": launcher_ver,
+                "inline": true
+            },
+            {
+                "name": "📦 Profile & Mod Loader",
+                "value": format!("**{}** (MC {} • {})", inst_name, mc_ver, mod_loader),
+                "inline": true
+            },
+            {
+                "name": "🧠 Memory Allocated",
+                "value": ram_str,
+                "inline": true
+            },
+            {
+                "name": "☕ Java Runtime",
+                "value": if java_str.len() > 40 {
+                    format!("...{}", &java_str[java_str.len() - 37..])
+                } else {
+                    java_str
+                },
+                "inline": true
+            },
+            {
+                "name": "🖥️ Graphics / GPU",
+                "value": gpu_name,
+                "inline": false
+            }
+        ],
+        "footer": {
+            "text": "DV Launcher • Automated Diagnostics & Crash Dispatcher"
+        },
+        "timestamp": now_iso
+    });
+
+    let payload_json = serde_json::json!({
+        "embeds": [embed]
+    });
+
+    // 6. Build Multipart and Send via reqwest
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(20))
+        .build()
+        .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+    let form_file = reqwest::multipart::Part::bytes(full_logs.into_bytes())
+        .file_name("crash.log")
+        .mime_str("text/plain")
+        .map_err(|e| format!("Failed to encode crash log attachment: {}", e))?;
+
+    let form = reqwest::multipart::Form::new()
+        .text("payload_json", serde_json::to_string(&payload_json).unwrap_or_default())
+        .part("files[0]", form_file);
+
+    let resp = client
+        .post(DISCORD_CRASH_WEBHOOK_URL)
+        .multipart(form)
+        .send()
+        .await
+        .map_err(|e| format!("Failed to send crash report to webhook: {}", e))?;
+
+    if !resp.status().is_success() {
+        let status = resp.status();
+        let body = resp.text().await.unwrap_or_default();
+        return Err(format!("Webhook error (HTTP {}): {}", status, body));
+    }
+
+    info!(
+        "Crash report successfully dispatched to diagnostics webhook for user: {}",
+        username
+    );
+    Ok(true)
+}

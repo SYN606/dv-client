@@ -13,6 +13,8 @@
     FileText,
     X,
     Filter,
+    Send,
+    Loader2,
   } from "lucide-svelte";
 
   let consoleBox: HTMLDivElement | null = $state(null);
@@ -207,6 +209,24 @@
         <Trash2 class="w-3.5 h-3.5" />
         <span>Clear</span>
       </button>
+
+      <button
+        onclick={() => launcher.reportCrash()}
+        disabled={launcher.isReportingCrash}
+        title="Send crash and error logs with system diagnostics"
+        class="px-3 py-1.5 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 hover:text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
+      >
+        {#if launcher.isReportingCrash}
+          <Loader2 class="w-3.5 h-3.5 animate-spin" />
+          <span>Reporting...</span>
+        {:else if launcher.crashReportSuccess}
+          <Check class="w-3.5 h-3.5 text-emerald-400" />
+          <span>Reported!</span>
+        {:else}
+          <Send class="w-3.5 h-3.5" />
+          <span>Report</span>
+        {/if}
+      </button>
     </div>
   </div>
 
@@ -231,24 +251,42 @@
             </span>
           </h4>
           <p class="text-xs text-neutral-300 mt-0.5 leading-relaxed">
-            The JVM recorded an error or crash. Use the button to copy the stack
-            trace report directly for debugging.
+            The JVM recorded an error or crash. Press Report to transmit complete logs and device diagnostics for analysis.
           </p>
         </div>
       </div>
 
-      <button
-        onclick={copyCrashSnippet}
-        class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shrink-0 shadow-md shadow-rose-600/30"
-      >
-        {#if crashCopied}
-          <Check class="w-3.5 h-3.5" />
-          <span>Crash Report Copied!</span>
-        {:else}
-          <Copy class="w-3.5 h-3.5" />
-          <span>1-Click Copy Crash Report</span>
-        {/if}
-      </button>
+      <div class="flex items-center gap-2 shrink-0">
+        <button
+          onclick={() => launcher.reportCrash()}
+          disabled={launcher.isReportingCrash}
+          class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-md shadow-rose-600/30"
+        >
+          {#if launcher.isReportingCrash}
+            <Loader2 class="w-3.5 h-3.5 animate-spin" />
+            <span>Reporting...</span>
+          {:else if launcher.crashReportSuccess}
+            <Check class="w-3.5 h-3.5 text-emerald-300" />
+            <span>Reported!</span>
+          {:else}
+            <Send class="w-3.5 h-3.5" />
+            <span>Report Crash</span>
+          {/if}
+        </button>
+
+        <button
+          onclick={copyCrashSnippet}
+          class="px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-neutral-200 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border border-white/10"
+        >
+          {#if crashCopied}
+            <Check class="w-3.5 h-3.5 text-emerald-400" />
+            <span>Copied!</span>
+          {:else}
+            <Copy class="w-3.5 h-3.5" />
+            <span>Copy Snippet</span>
+          {/if}
+        </button>
+      </div>
     </div>
   {/if}
 

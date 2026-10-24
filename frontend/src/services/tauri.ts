@@ -181,6 +181,18 @@ export const TauriService = {
     return invoke("export_logs", { content });
   },
 
+  reportCrash(params: {
+    logs: string;
+    crashSnippet?: string | null;
+    instanceId?: string | null;
+  }): Promise<boolean> {
+    return invoke("report_crash", {
+      logs: params.logs,
+      crashSnippet: params.crashSnippet ?? null,
+      instanceId: params.instanceId ?? null,
+    });
+  },
+
   // --- Hardware, Java & Settings ---
   detectJava(): Promise<JavaInstallation[]> {
     return invoke("detect_java");

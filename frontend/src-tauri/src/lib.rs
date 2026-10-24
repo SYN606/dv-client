@@ -201,6 +201,7 @@ pub fn run() {
             get_latest_logs,
             open_logs_folder,
             export_logs,
+            report_crash,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

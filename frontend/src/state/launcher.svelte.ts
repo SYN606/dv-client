@@ -58,6 +58,8 @@ export class LauncherState {
   autoScrollLogs = $state(true);
   logSearchQuery = $state("");
   logLevelFilter = $state<"ALL" | "INFO" | "WARN" | "ERROR">("ALL");
+  isReportingCrash = $state(false);
+  crashReportSuccess = $state(false);
 
   // Hardware & Java state
   detectedJavas = $state<JavaInstallation[]>([]);
@@ -866,6 +868,32 @@ export class LauncherState {
       await invoke("open_folder", { path });
     } catch (e) {
       this.showToast("Failed to open directory: " + e);
+    }
+  }
+
+  async reportCrash(): Promise<boolean> {
+    if (this.isReportingCrash) return false;
+    this.isReportingCrash = true;
+    try {
+      const logsToSend = this.consoleLogs.join("\n");
+      const snippet = this.crashReportSnippet || null;
+      await TauriService.reportCrash({
+        logs: logsToSend,
+        crashSnippet: snippet,
+        instanceId: this.activeInstance?.id || null,
+      });
+      this.crashReportSuccess = true;
+      this.showToast("Report submitted successfully. Thank you!");
+      setTimeout(() => {
+        this.crashReportSuccess = false;
+      }, 5000);
+      return true;
+    } catch (e: any) {
+      console.error("Failed to submit report:", e);
+      this.showToast(`Report submission failed: ${e?.message || e}`);
+      return false;
+    } finally {
+      this.isReportingCrash = false;
     }
   }
 }
