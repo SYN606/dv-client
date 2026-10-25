@@ -53,20 +53,33 @@ pub fn get_default_app_data_dir() -> PathBuf {
     }
 }
 
-#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PrivacySettings {
     #[serde(default)]
     pub enable_telemetry: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub enable_crash_reporting: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub enable_discord_rpc: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub discord_show_version: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub discord_show_modpack: bool,
-    #[serde(default)]
+    #[serde(default = "default_true")]
     pub discord_show_elapsed_time: bool,
+}
+
+impl Default for PrivacySettings {
+    fn default() -> Self {
+        Self {
+            enable_telemetry: false,
+            enable_crash_reporting: true,
+            enable_discord_rpc: true,
+            discord_show_version: true,
+            discord_show_modpack: true,
+            discord_show_elapsed_time: true,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -379,8 +392,8 @@ mod tests {
         let mgr = ConfigManager::new(Some(&conf_file)).unwrap();
 
         assert!(!mgr.config.privacy.enable_telemetry);
-        assert!(!mgr.config.privacy.enable_crash_reporting);
-        assert!(!mgr.config.privacy.enable_discord_rpc);
+        assert!(mgr.config.privacy.enable_crash_reporting);
+        assert!(mgr.config.privacy.enable_discord_rpc);
         assert_eq!(mgr.config.downloads.max_concurrent_downloads, 8);
         assert_eq!(mgr.config.appearance.theme_mode, "dark");
         assert!(conf_file.exists());

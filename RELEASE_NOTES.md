@@ -101,22 +101,42 @@
 
 ---
 
+### 🎮 Discord Rich Presence (RPC) & Official Branding
+- **Live Launcher & In-Game Status**:
+  - Automatically activates on launcher boot: displays **"In Launcher (Idle)"** with launcher details and links.
+  - Automatically transitions when Minecraft launches: displays **"Playing Minecraft <Version>"** with live elapsed playtime timers.
+  - Automatically resets to idle when Minecraft exits or terminates.
+- **Embedded Launcher Logo**:
+  - Direct HTTPS resolution via Discord proxy (`https://raw.githubusercontent.com/SYN606/dv-client/main/assets/logo.png`) guaranteeing the obsidian/gold launcher logo renders on Discord user profiles without requiring manual Developer Portal asset key configuration.
+  - Interactive profile buttons: **"Play Minecraft"** and **"Join Discord"**.
+  - Respects privacy settings: customizable options for showing Minecraft version, modpack, elapsed time, or toggling Discord RPC entirely.
+
+### 🛡️ SmartScreen & Authenticode Digital Signing
+- **Authenticode Digital Signatures**:
+  - All release executables (`DigitalVigitalLauncher.exe`, `dv-launcher-app.exe`, `DigitalVigital-Setup-1.0.0.exe`) are digitally signed with an official Authenticode signature and RFC 3161 DigiCert timestamp.
+  - Windows file properties now display verified Publisher: **Digital Vigital**.
+- **1-Click Certificate Installer (`Trust-DigitalVigital.bat`)**:
+  - Bundled `DigitalVigital.cer` and `Trust-DigitalVigital.bat` in `dist/` and inside the portable zip package.
+  - Running `Trust-DigitalVigital.bat` as Administrator permanently adds the certificate to the local Trusted Root/Trusted Publisher stores, eliminating SmartScreen warnings for internal testing teams.
+
+---
+
 ## Downloads & Available Packages (v1.0.0)
 
 | Package | Size | Description |
 | :--- | :---: | :--- |
-| [**`DigitalVigital-Setup-1.0.0.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-Setup-1.0.0.exe) | **~10.5 MB** | **Windows NSIS Setup**: Interactive installer with custom drive selection, Start Menu & Desktop shortcuts, clean uninstaller, bundled WebView2Loader, and Add/Remove Programs registration. |
-| [**`DigitalVigital-v1.0.0-windows-x64-portable.zip`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-v1.0.0-windows-x64-portable.zip) | **~14.6 MB** | **Portable Standalone Package**: Contains `DigitalVigitalLauncher.exe`, `dv-launcher-app.exe`, `WebView2Loader.dll`, assets, and documentation. No installation required. |
-| [**`DigitalVigitalLauncher.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigitalLauncher.exe) | **41 MB** | **Direct Executable**: Standalone Windows executable with embedded primary icon resource (`1 ICON`). |
+| [**`DigitalVigital-Setup-1.0.0.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-Setup-1.0.0.exe) | **~10.6 MB** | **Windows NSIS Setup**: Authenticode-signed installer with custom drive selection, Start Menu & Desktop shortcuts, clean uninstaller, bundled WebView2Loader, and Add/Remove Programs registration. |
+| [**`DigitalVigital-v1.0.0-windows-x64-portable.zip`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigital-v1.0.0-windows-x64-portable.zip) | **~14.7 MB** | **Portable Standalone Package**: Contains signed `DigitalVigitalLauncher.exe`, `WebView2Loader.dll`, `DigitalVigital.cer`, `Trust-DigitalVigital.bat`, assets, and documentation. No installation required. |
+| [**`DigitalVigitalLauncher.exe`**](https://github.com/SYN606/dv-client/releases/download/v1.0.0/DigitalVigitalLauncher.exe) | **41 MB** | **Direct Executable**: Standalone Windows executable with embedded primary icon resource (`1 ICON`) and Authenticode signature. |
 
 ---
 
 ## Verified SHA-256 Checksums (v1.0.0)
 ```text
-5961c90b0af65b77d4272ece3b4502b45a49b81664797aaf5cff7731ebeabc75  DigitalVigital-Setup-1.0.0.exe
-44fc5c985b9cc89f0f09ebdab9934a3520b434699634fcc54a894bd30abdb2ef  DigitalVigital-v1.0.0-windows-x64-portable.zip
-718b4edf99ccb80c39a31ee1835f5e1bd5efbc54c241b11c27025f1f549f7886  DigitalVigitalLauncher.exe
-718b4edf99ccb80c39a31ee1835f5e1bd5efbc54c241b11c27025f1f549f7886  dv-launcher-app.exe
+9696299f0a383178ae5b330274840d1d0b8b35d75bbacee908794aec802fdb34  DigitalVigital-Setup-1.0.0.exe
+7cb30c6c3129834920995d1a85ed9378c303b601c4f4ccabea4e2a63b373a6ae  DigitalVigital-v1.0.0-windows-x64-portable.zip
+b75325ea52c02bedbfde4f36f41e19b1d4776b5d83f6ec344acdc3f29e8dc480  DigitalVigitalLauncher.exe
+1c38c2a7c1d69a5802d8253cb462f2a6c287f7d1caeabd3d5eca2a04b658f161  dv-launcher-app.exe
 86545b66cdb0603bc26b626fb9ad610cb6e71f28d468f5ea66df23b03dda96d5  WebView2Loader.dll
 ```
 

@@ -178,6 +178,15 @@ pub async fn save_settings(settings: SettingsDto, state: State<'_, AppState>) ->
     cm.config.performance_preset = settings.performance_preset;
     cm.config.on_launch_action = settings.on_launch_action;
     cm.config.privacy.enable_discord_rpc = settings.enable_discord_rpc;
+    if settings.enable_discord_rpc {
+        if state.supervisor.is_active() {
+            state.discord_rpc.set_playing("Minecraft");
+        } else {
+            state.discord_rpc.set_in_launcher();
+        }
+    } else {
+        state.discord_rpc.clear();
+    }
     cm.config.default_java_path = settings.custom_java_path.map(PathBuf::from);
 
     let trimmed_dir = settings.data_dir.trim();

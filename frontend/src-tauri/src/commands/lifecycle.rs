@@ -224,6 +224,14 @@ pub async fn launch_game(
 
     let _ = app_handle.emit("launch-status", "Launching Minecraft JVM...");
 
+    if config_clone.privacy.enable_discord_rpc {
+        state.discord_rpc.set_playing_with_options(
+            &inst.minecraft_version,
+            config_clone.privacy.discord_show_version,
+            config_clone.privacy.discord_show_elapsed_time,
+        );
+    }
+
     let sup = state.supervisor.clone();
     let app_handle_bg = app_handle.clone();
     let bg_game_dir = game_dir.clone();

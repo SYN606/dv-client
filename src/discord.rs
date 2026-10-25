@@ -11,6 +11,8 @@ use tokio::sync::mpsc;
 use tracing::{debug, info};
 
 pub const DEFAULT_DISCORD_CLIENT_ID: &str = "1341050215758069811";
+pub const DISCORD_LOGO_URL: &str =
+    "https://raw.githubusercontent.com/SYN606/dv-client/main/assets/logo.png";
 
 #[derive(Clone, Debug)]
 pub enum DiscordAction {
@@ -57,15 +59,36 @@ impl DiscordRpcHandle {
     }
 
     pub fn set_playing(&self, mc_version: &str) {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs())
-            .unwrap_or(0);
+        self.set_playing_with_options(mc_version, true, true);
+    }
+
+    pub fn set_playing_with_options(
+        &self,
+        mc_version: &str,
+        show_version: bool,
+        show_elapsed: bool,
+    ) {
+        let now = if show_elapsed {
+            Some(
+                SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0),
+            )
+        } else {
+            None
+        };
+
+        let state_text = if show_version && !mc_version.trim().is_empty() {
+            format!("Playing Minecraft {}", mc_version.trim())
+        } else {
+            "Playing Minecraft".to_string()
+        };
 
         let _ = self.tx.send(DiscordAction::SetActivity {
-            state: format!("Playing Minecraft {}", mc_version),
+            state: state_text,
             details: branding::DISCORD_RPC_DETAILS.to_string(),
-            start_time: Some(now),
+            start_time: now,
         });
     }
 
@@ -230,9 +253,21 @@ async fn dispatch_activity<S: tokio::io::AsyncWriteExt + tokio::io::AsyncReadExt
                 "details": details,
                 "state": state,
                 "assets": {
-                    "large_image": "logo",
-                    "large_text": "Digital Vigital (DV) Launcher"
-                }
+                    "large_image": DISCORD_LOGO_URL,
+                    "large_text": "Digital Vigital (DV) Launcher",
+                    "small_image": DISCORD_LOGO_URL,
+                    "small_text": "Digital Vigital"
+                },
+                "buttons": [
+                    {
+                        "label": "Play Minecraft",
+                        "url": "https://digitalvigital.fun/minecraft"
+                    },
+                    {
+                        "label": "Join Discord",
+                        "url": "https://discord.gg/flex-dv"
+                    }
+                ]
             });
 
             if let Some(start) = start_time {

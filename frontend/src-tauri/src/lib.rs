@@ -98,6 +98,10 @@ pub fn run() {
 
     let sup_for_logs = supervisor.clone();
     let sup_for_state = supervisor.clone();
+    let rpc_for_setup = discord_rpc.clone();
+    let rpc_for_state = discord_rpc.clone();
+    let cfg_for_setup = config_mgr.clone();
+    let cfg_for_state = config_mgr.clone();
 
     let app_state = AppState {
         config_mgr,
@@ -120,6 +124,14 @@ pub fn run() {
             append_startup_log("7. Tauri setup() callback executing");
             let handle = app.handle().clone();
 
+            // Background task: activate Discord RPC on launch if enabled
+            tauri::async_runtime::spawn(async move {
+                let enabled = cfg_for_setup.lock().await.config.privacy.enable_discord_rpc;
+                if enabled {
+                    rpc_for_setup.set_in_launcher();
+                }
+            });
+
             // Background task: stream supervisor process stdout & stderr to Tauri frontend
             let handle_logs = handle.clone();
             let mut log_rx = sup_for_logs.output_tx.subscribe();
@@ -135,11 +147,26 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 while let Ok(st) = state_rx.recv().await {
                     let (st_name, restore_win) = match st {
-                        ProcessState::Stopped => ("stopped", true),
+                        ProcessState::Stopped => {
+                            if cfg_for_state.lock().await.config.privacy.enable_discord_rpc {
+                                rpc_for_state.set_in_launcher();
+                            }
+                            ("stopped", true)
+                        }
                         ProcessState::Starting => ("starting", false),
                         ProcessState::Running => ("running", false),
-                        ProcessState::Exited(_) => ("finished", true),
-                        ProcessState::Crashed(_) => ("crashed", true),
+                        ProcessState::Exited(_) => {
+                            if cfg_for_state.lock().await.config.privacy.enable_discord_rpc {
+                                rpc_for_state.set_in_launcher();
+                            }
+                            ("finished", true)
+                        }
+                        ProcessState::Crashed(_) => {
+                            if cfg_for_state.lock().await.config.privacy.enable_discord_rpc {
+                                rpc_for_state.set_in_launcher();
+                            }
+                            ("crashed", true)
+                        }
                     };
 
                     let _ = handle_state.emit("game-state-change", st_name);
