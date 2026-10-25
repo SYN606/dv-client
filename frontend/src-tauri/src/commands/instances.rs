@@ -62,19 +62,32 @@ pub async fn get_instances(state: State<'_, AppState>) -> Result<Vec<InstanceDto
     let mgr = state.instance_mgr.lock().await;
     let cm = state.config_mgr.lock().await;
     let active_id = cm.config.active_instance_id.as_deref();
+    let global_max = cm.config.default_max_memory_mb;
 
     let mut list: Vec<InstanceDto> = mgr
         .instances
         .values()
-        .map(|inst| InstanceDto {
-            id: inst.id.clone(),
-            name: inst.name.clone(),
-            mc_version: inst.minecraft_version.clone(),
-            mod_loader: inst.mod_loader.clone(),
-            last_played: inst.last_played,
-            min_memory_mb: inst.min_memory_mb,
-            max_memory_mb: inst.max_memory_mb,
-            is_active: active_id == Some(&inst.id),
+        .map(|inst| {
+            let is_active = active_id == Some(&inst.id);
+            let effective_max = if is_active && global_max > 0 {
+                global_max
+            } else if inst.max_memory_mb > 0 && inst.max_memory_mb != 4096 {
+                inst.max_memory_mb
+            } else if global_max > 0 {
+                global_max
+            } else {
+                inst.max_memory_mb.max(4096)
+            };
+            InstanceDto {
+                id: inst.id.clone(),
+                name: inst.name.clone(),
+                mc_version: inst.minecraft_version.clone(),
+                mod_loader: inst.mod_loader.clone(),
+                last_played: inst.last_played,
+                min_memory_mb: inst.min_memory_mb,
+                max_memory_mb: effective_max,
+                is_active,
+            }
         })
         .collect();
 
@@ -91,6 +104,31 @@ pub async fn select_active_instance(id: String, state: State<'_, AppState>) -> R
 }
 
 #[tauri::command]
+pub async fn update_instance_memory(
+    id: String,
+    max_memory_mb: u32,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut im = state.instance_mgr.lock().await;
+    if let Some(inst) = im.instances.get_mut(&id) {
+        inst.max_memory_mb = max_memory_mb;
+        let inst_clone = inst.clone();
+        im.save_instance(&inst_clone).map_err(|e| e.to_string())?;
+    } else {
+        return Err("Instance not found".to_string());
+    }
+
+    // If this is the active instance, also update the global default
+    let mut cm = state.config_mgr.lock().await;
+    if cm.config.active_instance_id.as_deref() == Some(&id) {
+        cm.config.default_max_memory_mb = max_memory_mb;
+        let _ = cm.save();
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
 pub async fn create_instance(
     name: String,
     mc_version: String,
@@ -98,13 +136,17 @@ pub async fn create_instance(
     state: State<'_, AppState>,
 ) -> Result<InstanceDto, String> {
     let mut mgr = state.instance_mgr.lock().await;
-    let inst = mgr
+    let mut inst = mgr
         .create_instance(&name, &mc_version, &loader, None)
         .map_err(|e| e.to_string())?;
 
-    // Auto set as active instance
+    // Auto set as active instance and apply default_max_memory_mb
     let mut cm = state.config_mgr.lock().await;
     cm.config.active_instance_id = Some(inst.id.clone());
+    if cm.config.default_max_memory_mb > 0 {
+        inst.max_memory_mb = cm.config.default_max_memory_mb;
+        let _ = mgr.save_instance(&inst);
+    }
     let _ = cm.save();
 
     Ok(InstanceDto {

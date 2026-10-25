@@ -65,6 +65,10 @@ export const TauriService = {
     return invoke("delete_instance", { instanceId });
   },
 
+  updateInstanceMemory(id: string, maxMemoryMb: number): Promise<void> {
+    return invoke("update_instance_memory", { id, maxMemoryMb });
+  },
+
   getAllMinecraftVersions(): Promise<MinecraftVersionSummary[]> {
     return invoke("get_all_minecraft_versions");
   },

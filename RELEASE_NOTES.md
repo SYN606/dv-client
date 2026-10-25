@@ -102,10 +102,11 @@
 ---
 
 ### 🧠 Dynamic RAM Allocation & Smart Session Hints
-- **Reliable Dynamic Memory Allocation**:
+- **Reliable Dynamic Memory Allocation & Profile Synchronization**:
   - The Settings RAM slider now immediately and reliably calculates and injects the effective `-Xmx` (maximum heap) and `-Xms` (initial heap) parameters directly into the Minecraft JVM launch command.
-  - Added 1-click fast memory preset pills (**2 GB**, **4 GB**, **6 GB**, **8 GB**, **12 GB**, **16 GB**) for instantaneous switching.
-  - Auto-saves instantly on slider release and reflects live in the Play tab launcher overview.
+  - Added 1-click fast memory preset pills (**2 GB**, **4 GB**, **6 GB**, **8 GB**, **12 GB**, **16 GB**) in Settings for instantaneous switching.
+  - Auto-saves instantly on slider release, synchronizes the active instance memory, and immediately persists the updated allocation to `instance.json` on disk.
+  - Added direct 1-click **Quick RAM Allocation presets** (**2 GB**, **4 GB**, **6 GB**, **8 GB**) directly on the Minecraft Profiles tab cards with instant two-way sync to global settings and live GB display.
 - **Intelligent Non-Fatal Exit vs Crash Diagnostics**:
   - Minecraft session termination is now categorized with granular severity (`is_fatal: bool`).
   - Normal window closures, clean exits, and routine game stops no longer display alarming red crash alerts.
@@ -148,10 +149,10 @@
 
 ## Verified SHA-256 Checksums (v1.0.0)
 ```text
-4bf0337030d34dc0af0e5a770081928e234a70cdd669786dd8a56cb70fd038ac  DigitalVigital-Setup-1.0.0.exe
-ea97036a4e2e55e1163f1c607dbef4a5306cd20600eef9a8f4be2dca5a23fb7b  DigitalVigital-v1.0.0-windows-x64-portable.zip
-d4671b5772bfe6c77ffc13ac0ad0187fdf929a18980865823550d8837b9a683a  DigitalVigitalLauncher.exe
-864c7611d0d0016dfc5a89ed206942cc1cd01df7041d1e8ffba6919549953f60  dv-launcher-app.exe
+9f593f69acf5de12065f7b45131fa160a6534528c6f2166993760e360ed4a5ba  DigitalVigital-Setup-1.0.0.exe
+8032b809327a5ddb57d57540df86a9639c9aadaded7a0dd66900c3ce9ce214e5  DigitalVigital-v1.0.0-windows-x64-portable.zip
+624a00930c4e7373820acecb37eacb0330edd8a16e16ca40ae64faee9bb8b557  DigitalVigitalLauncher.exe
+25cc8888b3fb731434fc2550c3f7ca244dcc3082ee53510310a338609a96fa8f  dv-launcher-app.exe
 86545b66cdb0603bc26b626fb9ad610cb6e71f28d468f5ea66df23b03dda96d5  WebView2Loader.dll
 ```
 

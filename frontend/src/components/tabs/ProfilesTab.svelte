@@ -75,6 +75,9 @@
   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
     {#each launcher.instances as inst}
       {@const badge = getLoaderBadge(inst.mod_loader)}
+      {@const effectiveRam = inst.is_active
+        ? launcher.settings.default_max_memory_mb || inst.max_memory_mb
+        : inst.max_memory_mb}
       <div
         class="rounded-2xl border p-5 flex flex-col justify-between transition-all duration-200 group relative {inst.is_active
           ? 'bg-[#140b0f] border-red-500/40 shadow-xl shadow-red-500/10'
@@ -125,11 +128,38 @@
               class="flex items-center justify-between py-1 border-b border-white/4"
             >
               <span class="text-neutral-400 flex items-center gap-2">
-                <HardDrive class="w-4 h-4" /> RAM Max
+                <HardDrive class="w-4 h-4 text-red-400" /> RAM Max
               </span>
-              <span class="text-white font-semibold font-mono"
-                >{inst.max_memory_mb} MB</span
-              >
+              <span class="text-white font-semibold font-mono flex items-center gap-1.5">
+                <span class="text-red-400 font-bold">{effectiveRam} MB</span>
+                <span class="text-neutral-400 text-[11px] font-sans">({Math.round(effectiveRam / 1024)} GB)</span>
+              </span>
+            </div>
+
+            <!-- Quick RAM Allocation Presets -->
+            <div class="py-1.5 border-b border-white/4">
+              <div class="flex items-center justify-between text-[10px] text-neutral-400 uppercase font-bold tracking-wider mb-1.5">
+                <span>Allocate RAM</span>
+                {#if inst.is_active}
+                  <span class="text-red-400 font-mono text-[9px] lowercase">syncs with settings</span>
+                {/if}
+              </div>
+              <div class="grid grid-cols-4 gap-1">
+                {#each [2048, 4096, 6144, 8192] as ramVal}
+                  <button
+                    type="button"
+                    onclick={(e) => {
+                      e.stopPropagation();
+                      launcher.updateInstanceMemory(inst.id, ramVal);
+                    }}
+                    class="py-1 px-1 rounded-md text-[10px] font-mono font-bold transition-all cursor-pointer border text-center {effectiveRam === ramVal
+                      ? 'bg-red-600/30 text-red-200 border-red-500/60 shadow-sm'
+                      : 'bg-white/4 hover:bg-white/10 text-neutral-400 hover:text-white border-white/5'}"
+                  >
+                    {ramVal / 1024} GB
+                  </button>
+                {/each}
+              </div>
             </div>
 
             <div class="flex items-center justify-between py-1">

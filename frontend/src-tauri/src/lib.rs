@@ -197,6 +197,7 @@ pub fn run() {
             select_active_instance,
             create_instance,
             delete_instance,
+            update_instance_memory,
             get_accounts,
             select_active_account,
             add_offline_account,

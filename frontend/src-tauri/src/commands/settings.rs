@@ -218,6 +218,26 @@ pub async fn save_settings(settings: SettingsDto, state: State<'_, AppState>) ->
             im.instances_dir = new_inst_dir;
             let _ = im.load_all();
         }
+
+        // Synchronize instance RAM with updated default_max_memory_mb
+        if settings.default_max_memory_mb > 0 {
+            let mut to_save = Vec::new();
+            if let Some(ref active_id) = cm.config.active_instance_id {
+                if let Some(inst) = im.instances.get_mut(active_id) {
+                    inst.max_memory_mb = settings.default_max_memory_mb;
+                    to_save.push(inst.clone());
+                }
+            }
+            for inst in im.instances.values_mut() {
+                if inst.max_memory_mb == 4096 || inst.max_memory_mb == 0 {
+                    inst.max_memory_mb = settings.default_max_memory_mb;
+                    to_save.push(inst.clone());
+                }
+            }
+            for inst in to_save {
+                let _ = im.save_instance(&inst);
+            }
+        }
     }
 
     cm.save().map_err(|e| e.to_string())?;

@@ -223,12 +223,33 @@ export class LauncherState {
     try {
       this.instances = await invoke("get_instances");
       this.activeInstance = this.instances.find(i => i.is_active) || null;
+      if (this.activeInstance && this.settings.default_max_memory_mb) {
+        this.activeInstance.max_memory_mb = this.settings.default_max_memory_mb;
+      }
       if (this.activeInstance) {
         await this.loadInstalledMods();
         this.fetchModsForSelectedProfile();
       }
     } catch (e) {
       console.error("Failed to load instances:", e);
+    }
+  }
+
+  async updateInstanceMemory(id: string, maxMemoryMb: number) {
+    try {
+      await invoke("update_instance_memory", { id, maxMemoryMb });
+      const target = this.instances.find(i => i.id === id);
+      if (target) {
+        target.max_memory_mb = maxMemoryMb;
+      }
+      if (this.activeInstance?.id === id) {
+        this.activeInstance.max_memory_mb = maxMemoryMb;
+        this.settings.default_max_memory_mb = maxMemoryMb;
+      }
+      await this.refreshInstances();
+      this.showToast(`Allocated ${maxMemoryMb} MB RAM (${Math.round(maxMemoryMb / 1024)} GB)!`);
+    } catch (e: any) {
+      this.showToast("Failed to update profile RAM: " + e);
     }
   }
 
@@ -847,6 +868,17 @@ export class LauncherState {
   async saveSettings() {
     try {
       await invoke("save_settings", { settings: this.settings });
+      if (this.settings.default_max_memory_mb) {
+        if (this.activeInstance) {
+          this.activeInstance.max_memory_mb = this.settings.default_max_memory_mb;
+        }
+        for (const inst of this.instances) {
+          if (inst.is_active || inst.max_memory_mb === 4096) {
+            inst.max_memory_mb = this.settings.default_max_memory_mb;
+          }
+        }
+      }
+      await this.refreshInstances();
       this.showToast("Settings saved successfully!");
     } catch (e) {
       this.showToast("Failed to save settings: " + e);
