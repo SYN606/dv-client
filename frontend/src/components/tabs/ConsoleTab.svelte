@@ -113,7 +113,7 @@
   });
 </script>
 
-<div class="h-full flex flex-col p-8 space-y-4">
+<div class="h-full flex flex-col p-4 sm:p-6 lg:p-8 space-y-4">
   <!-- Top Bar -->
   <div
     class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/8 shrink-0"

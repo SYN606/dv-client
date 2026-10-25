@@ -101,6 +101,21 @@
 
 ---
 
+### 🧠 Dynamic RAM Allocation & Smart Session Hints
+- **Reliable Dynamic Memory Allocation**:
+  - The Settings RAM slider now immediately and reliably calculates and injects the effective `-Xmx` (maximum heap) and `-Xms` (initial heap) parameters directly into the Minecraft JVM launch command.
+  - Added 1-click fast memory preset pills (**2 GB**, **4 GB**, **6 GB**, **8 GB**, **12 GB**, **16 GB**) for instantaneous switching.
+  - Auto-saves instantly on slider release and reflects live in the Play tab launcher overview.
+- **Intelligent Non-Fatal Exit vs Crash Diagnostics**:
+  - Minecraft session termination is now categorized with granular severity (`is_fatal: bool`).
+  - Normal window closures, clean exits, and routine game stops no longer display alarming red crash alerts.
+  - Instead, the launcher surfaces a gentle, dismissible amber/blue **Session Notice** ("Minecraft Session Ended") with a 1-click **"View Logs"** button, reserving high-priority error cards strictly for genuine JVM fatal exceptions, bytecode mismatches, and native library crashes.
+- **Responsive Layout Across All Display Sizes**:
+  - Fully responsive layout architecture adapting from 720p/768p compact laptop displays to 4K ultra-wide monitors.
+  - Fluid padding, multi-column grid scaling, and auto-scrolling sidebar navigation so no controls or buttons are ever cut off on smaller screens.
+
+---
+
 ### 🎮 Discord Rich Presence (RPC) & Official Branding
 - **Live Launcher & In-Game Status**:
   - Automatically activates on launcher boot: displays **"In Launcher (Idle)"** with launcher details and links.
@@ -133,10 +148,10 @@
 
 ## Verified SHA-256 Checksums (v1.0.0)
 ```text
-9696299f0a383178ae5b330274840d1d0b8b35d75bbacee908794aec802fdb34  DigitalVigital-Setup-1.0.0.exe
-7cb30c6c3129834920995d1a85ed9378c303b601c4f4ccabea4e2a63b373a6ae  DigitalVigital-v1.0.0-windows-x64-portable.zip
-b75325ea52c02bedbfde4f36f41e19b1d4776b5d83f6ec344acdc3f29e8dc480  DigitalVigitalLauncher.exe
-1c38c2a7c1d69a5802d8253cb462f2a6c287f7d1caeabd3d5eca2a04b658f161  dv-launcher-app.exe
+4bf0337030d34dc0af0e5a770081928e234a70cdd669786dd8a56cb70fd038ac  DigitalVigital-Setup-1.0.0.exe
+ea97036a4e2e55e1163f1c607dbef4a5306cd20600eef9a8f4be2dca5a23fb7b  DigitalVigital-v1.0.0-windows-x64-portable.zip
+d4671b5772bfe6c77ffc13ac0ad0187fdf929a18980865823550d8837b9a683a  DigitalVigitalLauncher.exe
+864c7611d0d0016dfc5a89ed206942cc1cd01df7041d1e8ffba6919549953f60  dv-launcher-app.exe
 86545b66cdb0603bc26b626fb9ad610cb6e71f28d468f5ea66df23b03dda96d5  WebView2Loader.dll
 ```
 

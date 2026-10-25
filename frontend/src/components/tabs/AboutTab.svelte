@@ -20,7 +20,7 @@
   }
 </script>
 
-<div class="h-full overflow-y-auto p-8 space-y-8 select-none">
+<div class="h-full overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-6 sm:space-y-8 select-none">
   <!-- Hero Section -->
   <div
     class="relative rounded-3xl overflow-hidden border border-white/10 bg-gradient-to-br from-[#12141c] via-[#0c0d14] to-[#1a080d] p-8 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8"

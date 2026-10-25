@@ -14,7 +14,7 @@
 </script>
 
 <aside
-  class="w-64 border-r border-white/8 bg-[#0a0c12]/95 backdrop-blur-2xl flex flex-col justify-between p-4 shrink-0 shadow-2xl z-20"
+  class="w-56 lg:w-64 border-r border-white/8 bg-[#0a0c12]/95 backdrop-blur-2xl flex flex-col justify-between p-3.5 lg:p-4 shrink-0 shadow-2xl z-20 overflow-y-auto"
 >
   <div class="space-y-6">
     <!-- Brand Crest Header -->

@@ -28,7 +28,7 @@
   }
 </script>
 
-<div class="h-full overflow-y-auto p-8 space-y-6">
+<div class="h-full overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
   <!-- Top Bar -->
   <div class="flex items-center justify-between pb-4 border-b border-white/8">
     <div>
@@ -485,27 +485,53 @@
           <span class="text-neutral-300 font-medium"
             >Maximum RAM Allocation (Xmx)</span
           >
-          <span class="text-red-400 font-bold font-mono"
-            >{launcher.settings.default_max_memory_mb} MB ({(
-              launcher.settings.default_max_memory_mb / 1024
+          <span class="text-red-400 font-bold font-mono text-sm"
+            >{launcher.settings.default_max_memory_mb || 4096} MB ({(
+              (launcher.settings.default_max_memory_mb || 4096) / 1024
             ).toFixed(1)} GB)</span
           >
         </div>
         <input
           type="range"
           min="1024"
-          max="16384"
+          max="32768"
           step="512"
-          bind:value={launcher.settings.default_max_memory_mb}
-          class="w-full accent-red-500 cursor-pointer"
+          value={launcher.settings.default_max_memory_mb || 4096}
+          oninput={(e) => {
+            launcher.settings.default_max_memory_mb = parseInt((e.target as HTMLInputElement).value, 10);
+          }}
+          onchange={async (e) => {
+            launcher.settings.default_max_memory_mb = parseInt((e.target as HTMLInputElement).value, 10);
+            await launcher.saveSettings();
+          }}
+          class="w-full accent-red-500 cursor-pointer h-2 bg-white/10 rounded-lg"
         />
         <div
-          class="flex justify-between text-xs text-neutral-400 mt-1.5 font-medium"
+          class="flex justify-between text-[11px] text-neutral-400 mt-1.5 font-medium"
         >
           <span>1 GB</span>
           <span>4 GB (Default)</span>
           <span>8 GB (Recommended)</span>
           <span>16 GB</span>
+          <span>32 GB</span>
+        </div>
+
+        <!-- 1-Click Fast Presets -->
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-2 mt-3">
+          {#each [2048, 4096, 6144, 8192, 12288, 16384] as ramVal}
+            <button
+              type="button"
+              onclick={async () => {
+                launcher.settings.default_max_memory_mb = ramVal;
+                await launcher.saveSettings();
+              }}
+              class="py-1.5 px-2 rounded-lg text-xs font-mono font-bold transition-all cursor-pointer border {launcher.settings.default_max_memory_mb === ramVal
+                ? 'bg-red-500/20 border-red-500/50 text-white shadow-md shadow-red-500/20'
+                : 'bg-white/4 border-white/8 text-neutral-400 hover:text-white hover:bg-white/8'}"
+            >
+              {ramVal / 1024} GB
+            </button>
+          {/each}
         </div>
       </div>
     </div>

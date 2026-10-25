@@ -17,6 +17,8 @@ pub struct CrashAnalysis {
     pub recommended_action: String,
     pub log_excerpt: String,
     pub crash_report_path: Option<String>,
+    #[serde(default)]
+    pub is_fatal: bool,
 }
 
 impl CrashAnalysis {
@@ -77,6 +79,7 @@ impl ErrorDetector {
                 recommended_action: "Open Settings -> Java and select Java 21 (or click 'Install Java 21' to automatically download Temurin OpenJDK 21).".to_string(),
                 log_excerpt: Self::extract_relevant_snippet(&recent_lines, "UnsupportedClassVersionError"),
                 crash_report_path: crash_report.map(|p| p.to_string_lossy().to_string()),
+                is_fatal: true,
             };
         }
 
@@ -101,6 +104,7 @@ impl ErrorDetector {
                 recommended_action: "Ensure your instance profile has compatible game libraries downloaded, or click 'Repair' in Profile Settings.".to_string(),
                 log_excerpt: Self::extract_relevant_snippet(&recent_lines, "main class"),
                 crash_report_path: crash_report.map(|p| p.to_string_lossy().to_string()),
+                is_fatal: true,
             };
         }
 
@@ -126,6 +130,7 @@ impl ErrorDetector {
                 recommended_action: "Open Settings and review your Custom JVM Arguments. Remove deprecated or unrecognized flags.".to_string(),
                 log_excerpt: Self::extract_relevant_snippet(&recent_lines, "Unrecognized"),
                 crash_report_path: crash_report.map(|p| p.to_string_lossy().to_string()),
+                is_fatal: true,
             };
         }
 
@@ -142,6 +147,7 @@ impl ErrorDetector {
                 recommended_action: "Adjust the Maximum Memory allocation slider in Profile Settings (recommend 4096MB - 8192MB). Ensure 64-bit Java is installed.".to_string(),
                 log_excerpt: Self::extract_relevant_snippet(&recent_lines, "OutOfMemory"),
                 crash_report_path: crash_report.map(|p| p.to_string_lossy().to_string()),
+                is_fatal: true,
             };
         }
 
@@ -158,6 +164,7 @@ impl ErrorDetector {
                 recommended_action: "Open the Mod Studio tab, locate the incompatible or missing dependencies listed above, and update or disable them.".to_string(),
                 log_excerpt: reason,
                 crash_report_path: crash_report.map(|p| p.to_string_lossy().to_string()),
+                is_fatal: true,
             };
         }
 
@@ -174,6 +181,7 @@ impl ErrorDetector {
                 recommended_action: "Open the Mod Studio tab to verify required Forge library dependencies and remove conflicting mods.".to_string(),
                 log_excerpt: Self::extract_relevant_snippet(&recent_lines, "ModLoadingException"),
                 crash_report_path: crash_report.map(|p| p.to_string_lossy().to_string()),
+                is_fatal: true,
             };
         }
 
@@ -191,6 +199,7 @@ impl ErrorDetector {
                 recommended_action: "Update your GPU display drivers (NVIDIA / AMD / Intel) to the latest version, or change GPU Selection in Settings.".to_string(),
                 log_excerpt: Self::extract_relevant_snippet(&recent_lines, "GLFW"),
                 crash_report_path: crash_report.map(|p| p.to_string_lossy().to_string()),
+                is_fatal: true,
             };
         }
 
@@ -204,6 +213,7 @@ impl ErrorDetector {
                 recommended_action: "Disable third-party screen recording/overlay utilities and update your graphics drivers.".to_string(),
                 log_excerpt: Self::extract_relevant_snippet(&recent_lines, "EXCEPTION_ACCESS_VIOLATION"),
                 crash_report_path: crash_report.map(|p| p.to_string_lossy().to_string()),
+                is_fatal: true,
             };
         }
 
@@ -216,6 +226,7 @@ impl ErrorDetector {
                 recommended_action: "Download and install the Microsoft Visual C++ 2015-2022 Redistributable (x64) from Microsoft.".to_string(),
                 log_excerpt: "Process terminated immediately due to STATUS_DLL_NOT_FOUND (0xC0000135)".to_string(),
                 crash_report_path: crash_report.map(|p| p.to_string_lossy().to_string()),
+                is_fatal: true,
             };
         }
 
@@ -236,23 +247,44 @@ impl ErrorDetector {
                     recommended_action: "Click 'Report Crash' to submit diagnostics to Discord, or inspect the crash log file.".to_string(),
                     log_excerpt: content.lines().take(20).collect::<Vec<_>>().join("\n"),
                     crash_report_path: Some(cr_path.to_string_lossy().to_string()),
+                    is_fatal: true,
                 };
             }
         }
 
-        // 10. Fallback General Exit
+        // 10. Fallback General Exit: distinguish harmless exits/window closes from real crashes
         let snippet = recent_lines.iter().rev().take(10).cloned().collect::<Vec<_>>();
         let mut snippet_rev = snippet;
         snippet_rev.reverse();
 
-        CrashAnalysis {
-            exit_code,
-            category: "Unexpected Termination".to_string(),
-            headline: format!("Game process terminated with exit code {}", exit_code),
-            explanation: "Minecraft stopped running unexpectedly. Review the console logs for recent exceptions or error traces.".to_string(),
-            recommended_action: "Check the Live Console tab for the full log trace or click 'Report Crash' to analyze further.".to_string(),
-            log_excerpt: snippet_rev.join("\n"),
-            crash_report_path: None,
+        let is_minor_session_end = exit_code == 0
+            || exit_code == 1
+            || exit_code == -1
+            || exit_code == 130
+            || exit_code == 143;
+
+        if is_minor_session_end {
+            CrashAnalysis {
+                exit_code,
+                category: "Session Finished".to_string(),
+                headline: format!("Minecraft Session Ended (Exit Code {})", exit_code),
+                explanation: "The Minecraft process finished. If you exited to title, closed the game window, or disconnected, no action is needed.".to_string(),
+                recommended_action: "If this was intentional, you're all set! If the game closed unexpectedly, check the Live Console for any warning messages.".to_string(),
+                log_excerpt: snippet_rev.join("\n"),
+                crash_report_path: None,
+                is_fatal: false,
+            }
+        } else {
+            CrashAnalysis {
+                exit_code,
+                category: "Unexpected Termination".to_string(),
+                headline: format!("Game process terminated with exit code {}", exit_code),
+                explanation: "Minecraft stopped running unexpectedly. Review the console logs for recent exceptions or error traces.".to_string(),
+                recommended_action: "Check the Live Console tab for the full log trace or click 'Report Crash' to analyze further.".to_string(),
+                log_excerpt: snippet_rev.join("\n"),
+                crash_report_path: None,
+                is_fatal: true,
+            }
         }
     }
 

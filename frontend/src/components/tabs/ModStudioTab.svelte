@@ -103,7 +103,7 @@
   });
 </script>
 
-<div class="h-full overflow-y-auto p-8 space-y-6">
+<div class="h-full overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
   <!-- Top Header & View Switcher Bar -->
   <div
     class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-white/8"

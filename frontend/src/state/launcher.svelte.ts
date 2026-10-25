@@ -63,6 +63,7 @@ export class LauncherState {
   isReportingCrash = $state(false);
   crashReportSuccess = $state(false);
   crashDetails = $state<CrashAnalysis | null>(null);
+  hintDetails = $state<CrashAnalysis | null>(null);
   hasManualCrash = $state(false);
 
   // Software Updates
@@ -185,12 +186,21 @@ export class LauncherState {
 
       await listen<CrashAnalysis>("game-crashed", (event) => {
         this.crashDetails = event.payload;
+        this.hintDetails = null;
         this.hasManualCrash = true;
         this.gameStatus = "crashed";
         if (event.payload?.headline) {
           this.launchStatusText = `Crashed: ${event.payload.headline}`;
           this.showToast(`[${event.payload.category}] ${event.payload.headline}`);
         }
+      });
+
+      await listen<CrashAnalysis>("game-hint", (event) => {
+        this.hintDetails = event.payload;
+        this.crashDetails = null;
+        this.hasManualCrash = false;
+        this.gameStatus = "idle";
+        this.launchStatusText = "Session finished.";
       });
 
       await listen<any>("java-install-progress", (event) => {
@@ -1100,6 +1110,20 @@ export class LauncherState {
     } finally {
       this.isReportingCrash = false;
     }
+  }
+
+  dismissCrash() {
+    this.hasManualCrash = false;
+    this.crashDetails = null;
+    this.hintDetails = null;
+    if (this.gameStatus === "crashed") {
+      this.gameStatus = "idle";
+      this.launchStatusText = "Ready to Play";
+    }
+  }
+
+  dismissHint() {
+    this.hintDetails = null;
   }
 
   // --- Software Updates ---

@@ -20,6 +20,7 @@
     Download,
     X,
     FileText,
+    Info,
   } from "lucide-svelte";
 
   function getLoaderColor(loader: string = "") {
@@ -34,7 +35,7 @@
   }
 </script>
 
-<div class="h-full overflow-y-auto p-8 space-y-6">
+<div class="h-full overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
   <!-- Software Update Notification Banner -->
   {#if launcher.updateInfo?.has_update && !launcher.dismissedUpdateBanner}
     <div
@@ -165,26 +166,35 @@
       {/if}
     </div>
 
-    <!-- Crash / Error Alert Card -->
-    {#if launcher.gameStatus === "crashed" || launcher.hasCrashDetected}
+    <!-- Fatal Crash Alert Card (Only shown for real fatal errors) -->
+    {#if (launcher.gameStatus === "crashed" || launcher.hasCrashDetected) && launcher.crashDetails?.is_fatal !== false}
       <div
-        class="relative z-10 p-4.5 rounded-2xl bg-rose-950/70 border border-rose-500/50 flex flex-col gap-3 shadow-2xl backdrop-blur-md"
+        class="relative z-10 p-4.5 rounded-2xl bg-rose-950/80 border border-rose-500/60 flex flex-col gap-3 shadow-2xl backdrop-blur-md animate-in fade-in duration-200"
       >
         <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div class="flex items-start gap-3">
+          <div class="flex items-start gap-3 flex-1 min-w-0">
             <div
-              class="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0 mt-0.5"
+              class="w-10 h-10 rounded-xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0 mt-0.5"
             >
               <AlertTriangle class="w-5 h-5" />
             </div>
-            <div>
-              <div class="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
-                <span>{launcher.crashDetails?.headline || "Minecraft Exited Unexpectedly or Crashed"}</span>
-                <span
-                  class="px-2 py-0.5 rounded bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[10px] font-black uppercase"
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2">
+                <div class="text-sm font-bold text-white flex items-center gap-2 flex-wrap">
+                  <span>{launcher.crashDetails?.headline || "Minecraft Crash Detected"}</span>
+                  <span
+                    class="px-2 py-0.5 rounded bg-rose-500/20 border border-rose-500/40 text-rose-300 text-[10px] font-black uppercase"
+                  >
+                    {launcher.crashDetails?.category || "Crash Alert"}
+                  </span>
+                </div>
+                <button
+                  onclick={() => launcher.dismissCrash()}
+                  class="p-1 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer shrink-0"
+                  title="Dismiss alert"
                 >
-                  {launcher.crashDetails?.category || "Crash Alert"}
-                </span>
+                  <X class="w-4 h-4" />
+                </button>
               </div>
               <p class="text-xs text-neutral-200 mt-1 leading-relaxed">
                 {launcher.crashDetails?.explanation || "The game process terminated with an error. Review the Live Console or report diagnostics."}
@@ -240,6 +250,50 @@
               <span>Console</span>
             </button>
           </div>
+        </div>
+      </div>
+    {/if}
+
+    <!-- Non-Fatal Session Hint Banner (For small warnings or normal exits) -->
+    {#if launcher.hintDetails || (launcher.crashDetails && launcher.crashDetails.is_fatal === false)}
+      {@const hint = launcher.hintDetails || launcher.crashDetails}
+      <div
+        class="relative z-10 p-4 rounded-2xl bg-gradient-to-r from-neutral-900/90 via-[#131622]/90 to-[#0e1017]/90 border border-white/12 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl backdrop-blur-md animate-in fade-in duration-200"
+      >
+        <div class="flex items-center gap-3 min-w-0">
+          <div
+            class="w-9 h-9 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shrink-0"
+          >
+            <Info class="w-4 h-4" />
+          </div>
+          <div class="min-w-0">
+            <div class="text-xs font-bold text-white flex items-center gap-2">
+              <span>{hint?.headline || "Minecraft Session Ended"}</span>
+              <span class="px-2 py-0.2 rounded bg-white/8 text-neutral-300 text-[10px] font-mono">
+                Exit Code {hint?.exit_code ?? 0}
+              </span>
+            </div>
+            <p class="text-[11px] text-neutral-300 mt-0.5 leading-snug">
+              {hint?.explanation || "The game process closed. If you closed the window intentionally, no action is needed."}
+            </p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+          <button
+            onclick={() => (launcher.activeTab = "console")}
+            class="px-3 py-1.5 rounded-lg bg-white/6 hover:bg-white/12 text-neutral-300 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer border border-white/8"
+          >
+            <Terminal class="w-3.5 h-3.5 text-neutral-400" />
+            <span>View Logs</span>
+          </button>
+          <button
+            onclick={() => { launcher.dismissCrash(); launcher.dismissHint(); }}
+            class="p-1.5 rounded-lg text-neutral-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            title="Dismiss notice"
+          >
+            <X class="w-4 h-4" />
+          </button>
         </div>
       </div>
     {/if}
@@ -321,7 +375,7 @@
   </div>
 
   <!-- Quick Feature Grid -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
     <!-- 1-Click Essential FPS Pack -->
     <div
       class="p-6 rounded-2xl bg-[#0e1017]/90 border border-white/8 hover:border-white/16 transition-all flex flex-col justify-between group"
@@ -420,8 +474,11 @@
           >
             <span class="text-neutral-400">Allocated RAM</span>
             <span class="text-white font-bold font-mono"
-              >{launcher.activeInstance?.max_memory_mb ||
-                launcher.settings.default_max_memory_mb} MB</span
+              >{launcher.settings.default_max_memory_mb ||
+                launcher.activeInstance?.max_memory_mb ||
+                4096} MB ({(
+                (launcher.settings.default_max_memory_mb || 4096) / 1024
+              ).toFixed(1)} GB)</span
             >
           </div>
           <div

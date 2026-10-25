@@ -203,8 +203,30 @@ pub async fn launch_game(
             "offline".to_string()
         },
         xuid: "".to_string(),
-        min_memory_mb: inst.min_memory_mb,
-        max_memory_mb: inst.max_memory_mb,
+        min_memory_mb: {
+            let max_r = if config_clone.default_max_memory_mb > 0 {
+                config_clone.default_max_memory_mb
+            } else if inst.max_memory_mb > 0 {
+                inst.max_memory_mb
+            } else {
+                4096
+            };
+            std::cmp::min(
+                if config_clone.default_min_memory_mb > 0 {
+                    config_clone.default_min_memory_mb
+                } else {
+                    1024
+                },
+                max_r.saturating_div(2).max(1024),
+            )
+        },
+        max_memory_mb: if config_clone.default_max_memory_mb > 0 {
+            config_clone.default_max_memory_mb
+        } else if inst.max_memory_mb > 0 {
+            inst.max_memory_mb
+        } else {
+            4096
+        },
         window_width: inst.window_width,
         window_height: inst.window_height,
         custom_jvm_args: Some(combined_jvm_args),
@@ -250,15 +272,25 @@ pub async fn launch_game(
             }
             Ok(code) => {
                 let analysis = sup.get_last_crash_analysis().await;
-                let _ = app_handle_bg.emit("game-state-change", "crashed");
-                if let Some(ref a) = analysis {
-                    let _ = app_handle_bg.emit("game-crashed", serde_json::to_value(a).unwrap_or_default());
-                    let _ = app_handle_bg.emit("launch-status", format!("Crash: {}", a.headline));
+                let is_real_crash = analysis.as_ref().map(|a| a.is_fatal).unwrap_or(code != 1 && code != -1);
+
+                if is_real_crash {
+                    let _ = app_handle_bg.emit("game-state-change", "crashed");
+                    if let Some(ref a) = analysis {
+                        let _ = app_handle_bg.emit("game-crashed", serde_json::to_value(a).unwrap_or_default());
+                        let _ = app_handle_bg.emit("launch-status", format!("Crash: {}", a.headline));
+                    } else {
+                        let _ = app_handle_bg.emit("launch-status", format!("Process crashed with code {}", code));
+                    }
                 } else {
-                    let _ = app_handle_bg.emit("launch-status", format!("Process crashed with code {}", code));
+                    let _ = app_handle_bg.emit("game-state-change", "finished");
+                    if let Some(ref a) = analysis {
+                        let _ = app_handle_bg.emit("game-hint", serde_json::to_value(a).unwrap_or_default());
+                    }
+                    let _ = app_handle_bg.emit("launch-status", format!("Session closed (exit code {})", code));
                 }
 
-                // If window was hidden on launch, restore it on crash
+                // If window was hidden on launch, restore it
                 if on_launch == "hide" {
                     if let Some(win) = app_handle_bg.get_webview_window("main") {
                         let _ = win.show();

@@ -31,7 +31,7 @@
   }
 </script>
 
-<header class="h-16 border-b border-white/8 bg-[#0a0c12]/90 backdrop-blur-xl px-6 flex items-center justify-between shrink-0 z-30 select-none">
+<header class="h-16 border-b border-white/8 bg-[#0a0c12]/90 backdrop-blur-xl px-3 sm:px-6 flex items-center justify-between gap-2 shrink-0 z-30 select-none">
   <!-- Left: Active Profile Quick Selector -->
   <div class="relative">
     <button

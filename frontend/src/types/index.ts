@@ -82,6 +82,7 @@ export interface CrashAnalysis {
   recommended_action: string;
   log_excerpt: string;
   crash_report_path: string | null;
+  is_fatal?: boolean;
 }
 
 export interface DownloadProgress {
