@@ -4,6 +4,7 @@
 //! streams real-time stdout/stderr, applies in-flight credential scrubbing, and tracks exit codes.
 
 use crate::security::redaction::{sanitize_cmd_args, sanitize_text};
+use std::collections::VecDeque;
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::path::Path;
@@ -128,7 +129,9 @@ impl ProcessSupervisor {
 
         #[cfg(target_os = "windows")]
         {
-            cmd.creation_flags(0x08000000);
+            // CREATE_NO_WINDOW (0x08000000) | ABOVE_NORMAL_PRIORITY_CLASS (0x00008000)
+            // Ensures the Windows kernel schedules CPU time slices with high priority for Minecraft rendering threads!
+            cmd.creation_flags(0x08000000 | 0x00008000);
         }
 
         for (k, v) in &env_vars {
@@ -153,8 +156,8 @@ impl ProcessSupervisor {
 
         let _ = self.state_tx.send(ProcessState::Running);
 
-        // Rolling buffer for automated error diagnostics
-        let rolling_buffer = Arc::new(Mutex::new(Vec::with_capacity(200)));
+        // Rolling buffer for automated error diagnostics (O(1) pop_front with VecDeque)
+        let rolling_buffer = Arc::new(Mutex::new(VecDeque::with_capacity(200)));
         let rolling_stdout = rolling_buffer.clone();
         let rolling_stderr = rolling_buffer.clone();
 
@@ -177,9 +180,9 @@ impl ProcessSupervisor {
                     {
                         let mut rb = rolling_stdout.lock().await;
                         if rb.len() >= 200 {
-                            rb.remove(0);
+                            rb.pop_front();
                         }
-                        rb.push(sanitized.clone());
+                        rb.push_back(sanitized.clone());
                     }
                     if let Some(ref mut f) = file {
                         let _ = writeln!(f, "{}", sanitized);
@@ -205,9 +208,9 @@ impl ProcessSupervisor {
                     {
                         let mut rb = rolling_stderr.lock().await;
                         if rb.len() >= 200 {
-                            rb.remove(0);
+                            rb.pop_front();
                         }
-                        rb.push(err_line.clone());
+                        rb.push_back(err_line.clone());
                     }
                     if let Some(ref mut f) = file {
                         let _ = writeln!(f, "{}", err_line);
@@ -242,7 +245,7 @@ impl ProcessSupervisor {
             let _ = self.state_tx.send(ProcessState::Exited(0));
         } else {
             error!("Game process exited with error code: {}", code);
-            let recent_lines = rolling_buffer.lock().await.clone();
+            let recent_lines: Vec<String> = rolling_buffer.lock().await.iter().cloned().collect();
             let analysis = super::error_detector::ErrorDetector::analyze(code, &recent_lines, &game_dir);
             let ansi_summary = analysis.to_ansi_summary();
             let _ = self.output_tx.send(ansi_summary);

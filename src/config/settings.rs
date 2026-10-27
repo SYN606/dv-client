@@ -192,7 +192,7 @@ fn default_on_launch_action() -> String {
 }
 
 fn default_performance_preset() -> String {
-    "aikar".to_string()
+    "turbo".to_string()
 }
 
 fn default_version() -> String {
@@ -313,8 +313,11 @@ impl ConfigManager {
         let config = if file_path.exists() {
             match fs::read_to_string(&file_path) {
                 Ok(content) => match serde_json::from_str::<LauncherConfig>(&content) {
-                    Ok(cfg) => {
+                    Ok(mut cfg) => {
                         let _ = cfg.ensure_directories();
+                        if cfg.performance_preset == "aikar" {
+                            cfg.performance_preset = "turbo".to_string();
+                        }
                         cfg
                     }
                     Err(e) => {

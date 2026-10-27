@@ -132,12 +132,38 @@ pub fn run() {
                 }
             });
 
-            // Background task: stream supervisor process stdout & stderr to Tauri frontend
+            // Background task: stream supervisor process stdout & stderr to Tauri frontend in efficient batches
             let handle_logs = handle.clone();
             let mut log_rx = sup_for_logs.output_tx.subscribe();
             tauri::async_runtime::spawn(async move {
-                while let Ok(line) = log_rx.recv().await {
-                    let _ = handle_logs.emit("game-log", &line);
+                let mut buffer = Vec::with_capacity(32);
+                let mut interval = tokio::time::interval(std::time::Duration::from_millis(150));
+                interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+                loop {
+                    tokio::select! {
+                        res = log_rx.recv() => {
+                            match res {
+                                Ok(line) => {
+                                    buffer.push(line);
+                                    if buffer.len() >= 40 {
+                                        let batch = std::mem::take(&mut buffer);
+                                        let _ = handle_logs.emit("game-log-batch", batch);
+                                    }
+                                }
+                                Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
+                                Err(tokio::sync::broadcast::error::RecvError::Closed) => {
+                                    break;
+                                }
+                            }
+                        }
+                        _ = interval.tick() => {
+                            if !buffer.is_empty() {
+                                let batch = std::mem::take(&mut buffer);
+                                let _ = handle_logs.emit("game-log-batch", batch);
+                            }
+                        }
+                    }
                 }
             });
 

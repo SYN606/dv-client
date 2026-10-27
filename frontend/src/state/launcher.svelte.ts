@@ -87,7 +87,7 @@ export class LauncherState {
     default_window_height: 720,
     selected_gpu: "auto",
     custom_jvm_args: "",
-    performance_preset: "aikar",
+    performance_preset: "turbo",
     on_launch_action: "hide",
     enable_discord_rpc: true,
     data_dir: "",
@@ -149,10 +149,21 @@ export class LauncherState {
 
     // Setup Tauri real-time event subscriptions
     try {
+      await listen<string[]>("game-log-batch", (event) => {
+        const batch = event.payload;
+        if (!batch || !batch.length) return;
+        this.consoleLogs = this.consoleLogs.concat(batch);
+        if (this.consoleLogs.length > 800) {
+          this.consoleLogs = this.consoleLogs.slice(this.consoleLogs.length - 500);
+        }
+      });
+
+      // Backward compatibility fallback for single game-log events
       await listen<string>("game-log", (event) => {
+        if (!event.payload) return;
         this.consoleLogs.push(event.payload);
-        if (this.consoleLogs.length > 2500) {
-          this.consoleLogs = this.consoleLogs.slice(this.consoleLogs.length - 1500);
+        if (this.consoleLogs.length > 800) {
+          this.consoleLogs = this.consoleLogs.slice(this.consoleLogs.length - 500);
         }
       });
 
@@ -176,15 +187,21 @@ export class LauncherState {
           this.launchStatusText = "Starting Minecraft JVM...";
         } else if (st === "finished" || st === "stopped") {
           this.gameStatus = "idle";
-          this.launchStatusText = "Game process closed.";
+          this.launchStatusText = "Session finished.";
         } else if (st === "crashed") {
           this.gameStatus = "crashed";
-          this.launchStatusText = "Game crashed. Check Live Console.";
-          this.showToast("Minecraft exited unexpectedly.");
+          this.launchStatusText = "Game process closed.";
         }
       });
 
       await listen<CrashAnalysis>("game-crashed", (event) => {
+        if (event.payload?.is_fatal === false) {
+          this.hintDetails = event.payload;
+          this.crashDetails = null;
+          this.hasManualCrash = false;
+          this.gameStatus = "idle";
+          return;
+        }
         this.crashDetails = event.payload;
         this.hintDetails = null;
         this.hasManualCrash = true;

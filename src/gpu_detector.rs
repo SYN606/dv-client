@@ -368,40 +368,62 @@ impl GpuDetector {
         #[cfg(target_os = "windows")]
         {
             use std::os::windows::process::CommandExt;
-            let path_str = dunce::simplified(java_exe.as_ref())
-                .to_string_lossy()
-                .to_string();
-            let pref_val = if gpu_id.to_lowercase().contains("discrete")
-                || gpu_id.to_lowercase().contains("nvidia")
-                || gpu_id.to_lowercase().contains("amd")
-            {
-                "GpuPreference=2;" // High Performance (Discrete GPU)
-            } else if gpu_id.to_lowercase().contains("integrated")
-                || gpu_id.to_lowercase().contains("intel")
-            {
-                "GpuPreference=1;" // Power Saving (Integrated GPU)
+            let path = java_exe.as_ref();
+            let parent = path.parent();
+
+            // Collect both java.exe and javaw.exe so Windows DirectX scheduler covers both
+            let mut paths_to_register = vec![dunce::simplified(path).to_string_lossy().to_string()];
+            if let Some(p) = parent {
+                for bin in ["javaw.exe", "java.exe"] {
+                    let candidate = p.join(bin);
+                    if candidate.exists() {
+                        let c_str = dunce::simplified(&candidate).to_string_lossy().to_string();
+                        if !paths_to_register.contains(&c_str) {
+                            paths_to_register.push(c_str);
+                        }
+                    }
+                }
+            }
+
+            let id_lower = gpu_id.to_lowercase();
+            let is_forced_integrated = id_lower.contains("integrated") || id_lower.contains("intel-integrated");
+
+            let use_discrete = if is_forced_integrated {
+                false
+            } else if id_lower.contains("discrete") || id_lower.contains("nvidia") || id_lower.contains("amd") {
+                true
             } else {
-                return;
+                // "auto" mode: inspect hardware GPUs and route to High Performance if discrete exists
+                let detected = Self::detect_gpus();
+                detected.iter().any(|d| d.is_discrete)
             };
 
-            let mut reg_cmd = Command::new("reg");
-            reg_cmd.args([
-                "add",
-                r"HKCU\Software\Microsoft\DirectX\UserGpuPreferences",
-                "/v",
-                &path_str,
-                "/t",
-                "REG_SZ",
-                "/d",
-                pref_val,
-                "/f",
-            ]);
-            reg_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
-            let _ = reg_cmd.output();
-            info!(
-                "Registered Windows DirectX GPU preference: {} -> {}",
-                path_str, pref_val
-            );
+            let pref_val = if use_discrete {
+                "GpuPreference=2;" // High Performance (Discrete GPU)
+            } else {
+                "GpuPreference=1;" // Power Saving (Integrated GPU)
+            };
+
+            for p_str in paths_to_register {
+                let mut reg_cmd = Command::new("reg");
+                reg_cmd.args([
+                    "add",
+                    r"HKCU\Software\Microsoft\DirectX\UserGpuPreferences",
+                    "/v",
+                    &p_str,
+                    "/t",
+                    "REG_SZ",
+                    "/d",
+                    pref_val,
+                    "/f",
+                ]);
+                reg_cmd.creation_flags(0x08000000); // CREATE_NO_WINDOW
+                let _ = reg_cmd.output();
+                info!(
+                    "Registered Windows DirectX GPU preference: {} -> {}",
+                    p_str, pref_val
+                );
+            }
         }
         #[cfg(not(target_os = "windows"))]
         {
@@ -414,7 +436,23 @@ impl GpuDetector {
         let mut vars = Vec::new();
         let id_lower = gpu_id.to_lowercase();
 
-        if id_lower.contains("nvidia") {
+        let (is_nvidia, is_amd) = if id_lower == "auto" {
+            let detected = Self::detect_gpus();
+            let has_nv = detected
+                .iter()
+                .any(|d| d.is_discrete && d.vendor.to_lowercase().contains("nvidia"));
+            let has_amd = detected
+                .iter()
+                .any(|d| d.is_discrete && d.vendor.to_lowercase().contains("amd"));
+            (has_nv, has_amd)
+        } else {
+            (
+                id_lower.contains("nvidia") || id_lower.contains("discrete"),
+                id_lower.contains("amd"),
+            )
+        };
+
+        if is_nvidia {
             // Linux NVIDIA PRIME offloading
             vars.push(("__NV_PRIME_RENDER_OFFLOAD".to_string(), "1".to_string()));
             vars.push((
@@ -427,7 +465,7 @@ impl GpuDetector {
             ));
             // Windows High-Performance hybrid graphics scheduler hint
             vars.push(("SHIM_MCCOMPAT".to_string(), "0x800000001".to_string()));
-        } else if id_lower.contains("amd") {
+        } else if is_amd {
             // Linux DRI PRIME for dedicated AMD cards
             vars.push(("DRI_PRIME".to_string(), "1".to_string()));
             // Windows AMD Radeon Driver performance optimizations

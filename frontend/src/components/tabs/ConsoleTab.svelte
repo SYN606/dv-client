@@ -43,23 +43,32 @@
     }, 2500);
   }
 
-  let errorCount = $derived(
-    launcher.consoleLogs.filter(
-      (l) =>
+  let logStats = $derived.by(() => {
+    let err = 0;
+    let warn = 0;
+    let info = 0;
+    const logs = launcher.consoleLogs;
+    for (let i = 0; i < logs.length; i++) {
+      const l = logs[i];
+      if (
         l.includes("ERROR") ||
         l.includes("FATAL") ||
         l.includes("Exception") ||
-        l.includes("Crash"),
-    ).length,
-  );
+        l.includes("Crash")
+      ) {
+        err++;
+      } else if (l.includes("WARN")) {
+        warn++;
+      } else if (l.includes("INFO")) {
+        info++;
+      }
+    }
+    return { err, warn, info };
+  });
 
-  let warnCount = $derived(
-    launcher.consoleLogs.filter((l) => l.includes("WARN")).length,
-  );
-
-  let infoCount = $derived(
-    launcher.consoleLogs.filter((l) => l.includes("INFO")).length,
-  );
+  let errorCount = $derived(logStats.err);
+  let warnCount = $derived(logStats.warn);
+  let infoCount = $derived(logStats.info);
 
   let displayedLogs = $derived.by(() => {
     let list = launcher.consoleLogs;

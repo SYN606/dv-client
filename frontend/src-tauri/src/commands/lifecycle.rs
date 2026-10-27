@@ -186,6 +186,22 @@ pub async fn launch_game(
         }
     };
 
+    // On Windows, prefer javaw.exe (GUI subsystem) over java.exe (Console subsystem)
+    let java_executable = if cfg!(target_os = "windows") {
+        if let Some(parent) = java_path.parent() {
+            let javaw = parent.join("javaw.exe");
+            if javaw.exists() {
+                javaw
+            } else {
+                java_path
+            }
+        } else {
+            java_path
+        }
+    } else {
+        java_path
+    };
+
     let launch_ctx = LaunchContext {
         version_package: version_pkg,
         instance_dir: inst_dir.clone(),
@@ -193,7 +209,7 @@ pub async fn launch_game(
         assets_dir: config_clone.shared_assets_dir(),
         libraries_dir: config_clone.shared_libraries_dir(),
         client_jar_path: client_jar,
-        java_executable: java_path,
+        java_executable,
         player_name: account.username.clone(),
         player_uuid: account.id.clone(),
         access_token,

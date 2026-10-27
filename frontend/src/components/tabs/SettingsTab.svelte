@@ -543,17 +543,17 @@
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
         <button
-          onclick={() => (launcher.settings.performance_preset = "aikar")}
+          onclick={() => (launcher.settings.performance_preset = "turbo")}
           class="p-4 rounded-xl border text-left transition-all cursor-pointer {launcher
-            .settings.performance_preset === 'aikar'
+            .settings.performance_preset === 'turbo' || launcher.settings.performance_preset === 'client'
             ? 'bg-red-500/15 border-red-500/40 text-white'
             : 'bg-white/3 border-white/8 text-neutral-300 hover:text-white'}"
         >
           <div class="text-xs font-bold uppercase tracking-wide">
-            Aikar Flags (Recommended)
+            Turbo Client (Recommended)
           </div>
           <div class="text-xs text-neutral-400 mt-1">
-            High TPS, eliminates micro-stuttering on G1GC
+            Max FPS, 25ms GC frame pacing, string deduplication
           </div>
         </button>
 
