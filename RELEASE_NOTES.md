@@ -119,6 +119,8 @@
   - Reduced console log buffer memory footprint and streamlined log level analytics into a single-pass loop.
 - **Clean Alert Diagnostics (No Intrusive Error Toasts)**:
   - Removed misleading crash toasts and alarming cards on clean window closures, disconnects, and exit codes 0/1/-1. Only genuine fatal JVM/mod exceptions trigger error cards.
+- **Universal Right-Click & Context Menu Suppression**:
+  - Completely disabled browser context menus (Back, Forward, Reload, Print, Inspect) across all modes (dev & release) at the HTML, DOM capture, Svelte window, and keyboard levels (`Shift+F10`, `ContextMenu` key) to guarantee a seamless native desktop app experience.
 
 ---
 
@@ -170,10 +172,10 @@
 
 ## Verified SHA-256 Checksums (v1.0.0)
 ```text
-42d396ab1b6aeee0a052ee42e777e2a72193c008b64260dd2cb482261f70c6aa  DigitalVigital-Setup-1.0.0.exe
-82801d0e884d08e6b5f4ece0da12c19d2a509bf1551157966152ab886dcf5149  DigitalVigital-v1.0.0-windows-x64-portable.zip
-47a5db2e1bd5610f09bb10a6c012f78b3062da63e4ab33a73aa0cb51262b7710  DigitalVigitalLauncher.exe
-47a5db2e1bd5610f09bb10a6c012f78b3062da63e4ab33a73aa0cb51262b7710  dv-launcher-app.exe
+d8d758888a5e14ce48cec9eda710dba0043af25cb7c214f5fde51d075d45594d  DigitalVigital-Setup-1.0.0.exe
+0d976d22ef126ee7a2a8d3eebe91d6a2d1c21f95b9fe7cf252cc0771fb1e28cf  DigitalVigital-v1.0.0-windows-x64-portable.zip
+d0393990193a2aa0923ea8ec5e57db458478a5479381e85005157aac06d3e008  DigitalVigitalLauncher.exe
+bf6c454e62d38c07ff75ac56d7b2d9134d2b161651099ef63584f6625188c7ad  dv-launcher-app.exe
 86545b66cdb0603bc26b626fb9ad610cb6e71f28d468f5ea66df23b03dda96d5  WebView2Loader.dll
 ```
 

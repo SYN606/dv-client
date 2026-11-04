@@ -26,6 +26,14 @@
   });
 </script>
 
+<svelte:window
+  oncontextmenu={(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  }}
+/>
+
 <div
   class="flex h-screen w-screen overflow-hidden bg-[#08090d] text-white select-none font-sans"
 >
