@@ -6,8 +6,12 @@ use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, State};
 
 #[tauri::command]
-pub async fn detect_java() -> Result<Vec<JavaDto>, String> {
-    let installations = JavaDetector::scan_system();
+pub async fn detect_java(state: State<'_, AppState>) -> Result<Vec<JavaDto>, String> {
+    let extra_dir = {
+        let cm = state.config_mgr.lock().await;
+        cm.config.runtimes_dir()
+    };
+    let installations = JavaDetector::scan_system_with_extra(&[extra_dir]);
     Ok(installations
         .into_iter()
         .map(|j| JavaDto {

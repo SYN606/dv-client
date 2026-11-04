@@ -33,6 +33,25 @@
       return "text-amber-300 border-amber-500/30 bg-amber-500/15";
     return "text-neutral-300 border-neutral-500/30 bg-neutral-500/15";
   }
+
+  function getRequiredJava(mcVersion: string = ""): number {
+    const parts = mcVersion.split(".");
+    if (parts.length >= 2) {
+      const minor = parseInt(parts[1], 10) || 21;
+      const patch = parseInt(parts[2], 10) || 0;
+      if (minor >= 21 || (minor === 20 && patch >= 5)) return 21;
+      if (minor >= 17) return 17;
+      return 8;
+    }
+    return 21;
+  }
+
+  const reqJava = $derived(
+    launcher.activeInstance ? getRequiredJava(launcher.activeInstance.mc_version) : 21
+  );
+  const hasCompatibleJava = $derived(
+    launcher.detectedJavas.some((j) => j.major_version >= reqJava)
+  );
 </script>
 
 <div class="h-full overflow-y-auto p-4 sm:p-6 lg:p-8 space-y-5 sm:space-y-6">
@@ -298,6 +317,46 @@
       </div>
     {/if}
 
+    <!-- 1-Click Java Auto-Install Readiness Card -->
+    {#if launcher.activeInstance && !hasCompatibleJava && launcher.gameStatus !== "running"}
+      <div
+        class="relative z-10 p-3.5 rounded-2xl bg-gradient-to-r from-amber-950/60 via-[#1e1508]/60 to-[#120d05]/70 border border-amber-500/35 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xl backdrop-blur-sm"
+      >
+        <div class="flex items-center gap-3 min-w-0">
+          <div
+            class="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0"
+          >
+            <Sparkles class="w-4 h-4" />
+          </div>
+          <div class="min-w-0">
+            <div class="text-xs font-bold text-white flex items-center gap-2">
+              <span>Java {reqJava} (LTS) Required</span>
+              <span class="px-2 py-0.2 rounded-full bg-amber-500/20 text-amber-300 text-[10px] font-mono font-bold">
+                Minecraft {launcher.activeInstance.mc_version}
+              </span>
+            </div>
+            <p class="text-[11px] text-neutral-300 mt-0.5">
+              Eclipse Temurin OpenJDK {reqJava} will be automatically configured for maximum FPS.
+            </p>
+          </div>
+        </div>
+
+        <button
+          onclick={() => launcher.installJava(reqJava)}
+          disabled={launcher.isInstallingJava}
+          class="shrink-0 px-4 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-neutral-900 font-extrabold text-xs uppercase tracking-wider flex items-center gap-2 transition-all cursor-pointer shadow-lg shadow-amber-600/25 disabled:opacity-50"
+        >
+          {#if launcher.isInstallingJava && launcher.installingJavaVersion === reqJava}
+            <Loader2 class="w-3.5 h-3.5 animate-spin text-neutral-900" />
+            <span>Installing Java {reqJava}...</span>
+          {:else}
+            <Download class="w-3.5 h-3.5 text-neutral-900" />
+            <span>1-Click Install Java {reqJava}</span>
+          {/if}
+        </button>
+      </div>
+    {/if}
+
     <!-- Bottom Launch Area -->
     <div
       class="relative z-10 pt-6 flex flex-col md:flex-row items-center justify-between gap-6"
@@ -491,11 +550,18 @@
           </div>
           <div class="flex justify-between items-center py-1">
             <span class="text-neutral-400">Java Runtime</span>
-            <span class="text-white font-bold font-mono">
+            <span class="text-white font-bold font-mono text-xs flex items-center gap-1.5">
               {#if launcher.settings.custom_java_path}
-                {launcher.detectedJavas.find((j) => j.path === launcher.settings.custom_java_path)?.display_name || "Custom Java"}
+                <span class="text-cyan-400">Custom</span>
+                <span class="text-neutral-300 truncate max-w-[130px]" title={launcher.settings.custom_java_path}>
+                  {launcher.detectedJavas.find((j) => j.path === launcher.settings.custom_java_path)?.display_name || "Custom Java"}
+                </span>
+              {:else if hasCompatibleJava}
+                <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span class="text-emerald-400 font-semibold">Java {reqJava} Ready</span>
               {:else}
-                Auto-Detect
+                <span class="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                <span class="text-amber-400 font-semibold">Auto-Installs on Launch</span>
               {/if}
             </span>
           </div>

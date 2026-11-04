@@ -436,21 +436,12 @@ impl GpuDetector {
         let mut vars = Vec::new();
         let id_lower = gpu_id.to_lowercase();
 
-        let (is_nvidia, is_amd) = if id_lower == "auto" {
-            let detected = Self::detect_gpus();
-            let has_nv = detected
-                .iter()
-                .any(|d| d.is_discrete && d.vendor.to_lowercase().contains("nvidia"));
-            let has_amd = detected
-                .iter()
-                .any(|d| d.is_discrete && d.vendor.to_lowercase().contains("amd"));
-            (has_nv, has_amd)
-        } else {
-            (
-                id_lower.contains("nvidia") || id_lower.contains("discrete"),
-                id_lower.contains("amd"),
-            )
-        };
+        if id_lower == "auto" {
+            return vars;
+        }
+
+        let is_amd = id_lower.contains("amd") || id_lower.contains("radeon");
+        let is_nvidia = !is_amd && (id_lower.contains("nvidia") || id_lower.contains("geforce") || id_lower.contains("discrete"));
 
         if is_nvidia {
             // Linux NVIDIA PRIME offloading

@@ -76,6 +76,7 @@ export class LauncherState {
   detectedJavas = $state<JavaInstallation[]>([]);
   detectedGpus = $state<GpuDevice[]>([]);
   isInstallingJava = $state(false);
+  installingJavaVersion = $state<number | null>(null);
   javaInstallStatus = $state("");
   javaInstallPercent = $state(0);
 
@@ -988,11 +989,12 @@ export class LauncherState {
 
   async installJava(version: number) {
     this.isInstallingJava = true;
+    this.installingJavaVersion = version;
     this.javaInstallPercent = 0;
-    this.javaInstallStatus = `Downloading Temurin OpenJDK ${version}...`;
+    this.javaInstallStatus = `Downloading Eclipse Temurin OpenJDK ${version}...`;
     try {
       const path: string = await invoke("install_java", { majorVersion: version });
-      this.showToast(`Java ${version} installed!`);
+      this.showToast(`Java ${version} installed and ready!`);
       this.javaInstallStatus = `Installed to ${path}`;
       await this.checkHardwareAndJava();
     } catch (e) {
@@ -1000,8 +1002,9 @@ export class LauncherState {
     } finally {
       setTimeout(() => {
         this.isInstallingJava = false;
+        this.installingJavaVersion = null;
         this.javaInstallStatus = "";
-      }, 3500);
+      }, 2000);
     }
   }
 

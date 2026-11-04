@@ -8,6 +8,7 @@
     Save,
     Download,
     Check,
+    Loader2,
     FolderOpen,
     FolderTree,
     Radio,
@@ -18,6 +19,10 @@
   } from "lucide-svelte";
 
   let savedSuccess = $state(false);
+
+  const isJ8Installed = $derived(launcher.detectedJavas.some((j) => j.major_version === 8));
+  const isJ17Installed = $derived(launcher.detectedJavas.some((j) => j.major_version === 17));
+  const isJ21Installed = $derived(launcher.detectedJavas.some((j) => j.major_version === 21));
 
   async function handleSave() {
     await launcher.saveSettings();
@@ -382,13 +387,17 @@
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
         <!-- Java 8 Card -->
-        <div class="p-4 rounded-xl bg-white/2 border border-white/6 flex flex-col justify-between">
+        <div class="p-4 rounded-xl {isJ8Installed ? 'bg-emerald-950/20 border-emerald-500/25' : 'bg-white/2 border-white/6'} border flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between mb-1.5">
               <span class="text-xs font-bold text-white">Java 8 (LTS)</span>
-              {#if launcher.detectedJavas.some((j) => j.major_version === 8)}
-                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold uppercase">
-                  Installed
+              {#if isJ8Installed}
+                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold uppercase flex items-center gap-1">
+                  <Check class="w-3 h-3" /> Ready
+                </span>
+              {:else}
+                <span class="text-[10px] px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 font-bold uppercase">
+                  Available
                 </span>
               {/if}
             </div>
@@ -397,21 +406,30 @@
           <button
             onclick={() => launcher.installJava(8)}
             disabled={launcher.isInstallingJava}
-            class="mt-3 w-full py-2 rounded-lg bg-white/6 hover:bg-white/12 border border-white/10 text-xs font-bold text-white flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+            class="mt-3 w-full py-2 rounded-lg {isJ8Installed ? 'bg-white/4 hover:bg-white/10 text-neutral-300' : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'} border border-white/10 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
           >
-            <Download class="w-3.5 h-3.5 text-amber-400" />
-            <span>Install Java 8</span>
+            {#if launcher.isInstallingJava && launcher.installingJavaVersion === 8}
+              <Loader2 class="w-3.5 h-3.5 animate-spin text-amber-400" />
+              <span>Installing...</span>
+            {:else}
+              <Download class="w-3.5 h-3.5 text-amber-400" />
+              <span>{isJ8Installed ? 'Reinstall Java 8' : 'Install Java 8'}</span>
+            {/if}
           </button>
         </div>
 
         <!-- Java 17 Card -->
-        <div class="p-4 rounded-xl bg-white/2 border border-white/6 flex flex-col justify-between">
+        <div class="p-4 rounded-xl {isJ17Installed ? 'bg-emerald-950/20 border-emerald-500/25' : 'bg-white/2 border-white/6'} border flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between mb-1.5">
               <span class="text-xs font-bold text-white">Java 17 (LTS)</span>
-              {#if launcher.detectedJavas.some((j) => j.major_version === 17)}
-                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold uppercase">
-                  Installed
+              {#if isJ17Installed}
+                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold uppercase flex items-center gap-1">
+                  <Check class="w-3 h-3" /> Ready
+                </span>
+              {:else}
+                <span class="text-[10px] px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 font-bold uppercase">
+                  Available
                 </span>
               {/if}
             </div>
@@ -420,21 +438,30 @@
           <button
             onclick={() => launcher.installJava(17)}
             disabled={launcher.isInstallingJava}
-            class="mt-3 w-full py-2 rounded-lg bg-white/6 hover:bg-white/12 border border-white/10 text-xs font-bold text-white flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+            class="mt-3 w-full py-2 rounded-lg {isJ17Installed ? 'bg-white/4 hover:bg-white/10 text-neutral-300' : 'bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border-amber-500/30'} border border-white/10 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
           >
-            <Download class="w-3.5 h-3.5 text-amber-400" />
-            <span>Install Java 17</span>
+            {#if launcher.isInstallingJava && launcher.installingJavaVersion === 17}
+              <Loader2 class="w-3.5 h-3.5 animate-spin text-amber-400" />
+              <span>Installing...</span>
+            {:else}
+              <Download class="w-3.5 h-3.5 text-amber-400" />
+              <span>{isJ17Installed ? 'Reinstall Java 17' : 'Install Java 17'}</span>
+            {/if}
           </button>
         </div>
 
         <!-- Java 21 Card -->
-        <div class="p-4 rounded-xl bg-white/2 border border-white/6 flex flex-col justify-between">
+        <div class="p-4 rounded-xl {isJ21Installed ? 'bg-emerald-950/20 border-emerald-500/25' : 'bg-white/2 border-white/6'} border flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between mb-1.5">
               <span class="text-xs font-bold text-white">Java 21 (LTS)</span>
-              {#if launcher.detectedJavas.some((j) => j.major_version === 21)}
-                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold uppercase">
-                  Installed
+              {#if isJ21Installed}
+                <span class="text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 font-bold uppercase flex items-center gap-1">
+                  <Check class="w-3 h-3" /> Ready
+                </span>
+              {:else}
+                <span class="text-[10px] px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 font-bold uppercase">
+                  Available
                 </span>
               {/if}
             </div>
@@ -443,10 +470,15 @@
           <button
             onclick={() => launcher.installJava(21)}
             disabled={launcher.isInstallingJava}
-            class="mt-3 w-full py-2 rounded-lg bg-white/6 hover:bg-white/12 border border-white/10 text-xs font-bold text-white flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+            class="mt-3 w-full py-2 rounded-lg {isJ21Installed ? 'bg-white/4 hover:bg-white/10 text-neutral-300' : 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-neutral-900 shadow-md shadow-amber-600/20'} border border-white/10 text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
           >
-            <Download class="w-3.5 h-3.5 text-amber-400" />
-            <span>Install Java 21</span>
+            {#if launcher.isInstallingJava && launcher.installingJavaVersion === 21}
+              <Loader2 class="w-3.5 h-3.5 animate-spin text-neutral-900" />
+              <span>Installing...</span>
+            {:else}
+              <Download class="w-3.5 h-3.5 {isJ21Installed ? 'text-amber-400' : 'text-neutral-900'}" />
+              <span>{isJ21Installed ? 'Reinstall Java 21' : 'Install Java 21'}</span>
+            {/if}
           </button>
         </div>
       </div>

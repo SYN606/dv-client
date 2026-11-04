@@ -126,6 +126,11 @@ impl JavaDetector {
 
     /// Auto-detect all compatible Java runtimes on the current operating system.
     pub fn scan_system() -> Vec<JavaInstallation> {
+        Self::scan_system_with_extra(&[])
+    }
+
+    /// Auto-detect all compatible Java runtimes, including additional directories (such as custom data/runtime folders).
+    pub fn scan_system_with_extra(extra_roots: &[PathBuf]) -> Vec<JavaInstallation> {
         let mut runtimes = Vec::new();
         let mut candidate_paths = Vec::new();
 
@@ -145,12 +150,12 @@ impl JavaDetector {
             }
         }
 
-        // 2. Scan OS-specific JVM directories
+        // 2. Scan OS-specific JVM directories (with extra roots)
         #[cfg(target_os = "windows")]
-        Self::scan_windows_java(&mut candidate_paths);
+        Self::scan_windows_java(&mut candidate_paths, extra_roots);
 
         #[cfg(not(target_os = "windows"))]
-        Self::scan_unix_java(&mut candidate_paths);
+        Self::scan_unix_java(&mut candidate_paths, extra_roots);
 
         for path in candidate_paths {
             if let Some(info) = Self::inspect_executable(&path) {
@@ -229,8 +234,17 @@ impl JavaDetector {
     }
 
     #[cfg(target_os = "windows")]
-    fn scan_windows_java(candidate_paths: &mut Vec<PathBuf>) {
+    fn scan_windows_java(candidate_paths: &mut Vec<PathBuf>, extra_roots: &[PathBuf]) {
         let mut win_roots: Vec<PathBuf> = Vec::new();
+
+        // Include any user-configured or custom runtime extra roots
+        for root in extra_roots {
+            let direct = dunce::simplified(&root.join("bin").join("java.exe")).to_path_buf();
+            if direct.exists() && !candidate_paths.contains(&direct) {
+                candidate_paths.push(direct);
+            }
+            win_roots.push(root.clone());
+        }
 
         // Check JAVA_HOME & JDK_HOME directly
         for env_key in &["JAVA_HOME", "JDK_HOME"] {
@@ -350,7 +364,7 @@ impl JavaDetector {
     }
 
     #[cfg(not(target_os = "windows"))]
-    fn scan_unix_java(candidate_paths: &mut Vec<PathBuf>) {
+    fn scan_unix_java(candidate_paths: &mut Vec<PathBuf>, extra_roots: &[PathBuf]) {
         // Linux & Unix standard JVM directories
         let mut linux_roots = vec![
             PathBuf::from("/usr/lib/jvm"),
@@ -358,6 +372,15 @@ impl JavaDetector {
             PathBuf::from("/opt/java"),
             PathBuf::from("/etc/alternatives"),
         ];
+
+        // Include any user-configured or custom runtime extra roots
+        for root in extra_roots {
+            let direct = dunce::simplified(&root.join("bin").join("java")).to_path_buf();
+            if direct.exists() && !candidate_paths.contains(&direct) {
+                candidate_paths.push(direct);
+            }
+            linux_roots.push(root.clone());
+        }
         if let Some(home) = dirs::home_dir() {
             linux_roots.push(home.join(".sdkman").join("candidates").join("java"));
             linux_roots.push(home.join(".asdf").join("installs").join("java"));

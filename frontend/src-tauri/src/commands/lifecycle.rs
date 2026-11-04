@@ -2,6 +2,7 @@ use crate::state::AppState;
 use dv_launcher::gpu_detector::GpuDetector;
 use dv_launcher::instances::sync_instance_mods;
 use dv_launcher::java_detector::JavaDetector;
+use dv_launcher::java_installer::JavaInstaller;
 use dv_launcher::loaders::{ModLoaderClient, ModLoaderLaunchInfo};
 use dv_launcher::minecraft::{
     DownloadProgress, InstallationPipeline, LaunchArgumentBuilder, LaunchContext,
@@ -66,39 +67,75 @@ pub async fn launch_game(
     };
 
     let req_ver = JavaDetector::required_java_major_version(&inst.minecraft_version);
-    let detected_javas = JavaDetector::scan_system();
+    let runtimes_dir = config_clone.runtimes_dir();
+    let detected_javas = JavaDetector::scan_system_with_extra(&[runtimes_dir.clone()]);
     let custom_path = inst
         .custom_java_path
         .as_ref()
         .or(config_clone.default_java_path.as_ref());
 
-    let java_path = if let Some(p) = custom_path.filter(|p| p.exists()) {
+    let req_name = match req_ver {
+        8 => "Java 8",
+        16 | 17 => "Java 17",
+        _ => "Java 21",
+    };
+
+    let java_path = if let Some(p) = custom_path.filter(|p| {
+        p.exists()
+            && JavaDetector::inspect_executable(p)
+                .map(|i| i.major_version >= req_ver)
+                .unwrap_or(false)
+    }) {
         p.clone()
     } else if let Some(j) = JavaDetector::find_best_java(&detected_javas, &inst.minecraft_version) {
         j.path.clone()
     } else {
-        state.is_launching.store(false, Ordering::SeqCst);
-        let req_name = match req_ver {
-            8 => "Java 8",
-            16 | 17 => "Java 17",
-            _ => "Java 21",
-        };
-        return Err(format!(
-            "Required Java version ({}) not found for Minecraft {}. Please install it via Settings.",
-            req_name, inst.minecraft_version
-        ));
+        // Automatic Seamless Java Installation: If missing, auto-download & configure runtime
+        let handle = app_handle.clone();
+        let _ = handle.emit(
+            "launch-status",
+            &format!(
+                "Auto-installing {} for Minecraft {}...",
+                req_name, inst.minecraft_version
+            ),
+        );
+        let progress_handle = app_handle.clone();
+        let installed = JavaInstaller::install_java_version(req_ver, &runtimes_dir, move |pct, status| {
+            let _ = progress_handle.emit(
+                "download-progress",
+                serde_json::json!({
+                    "current": (pct * 100.0) as u32,
+                    "total": 100,
+                    "percent": (pct * 100.0).clamp(0.0, 100.0),
+                    "status": format!("[{}] {}", req_name, status),
+                }),
+            );
+        })
+        .await
+        .map_err(|e| {
+            state.is_launching.store(false, Ordering::SeqCst);
+            format!(
+                "Failed to auto-install {} for Minecraft {}: {}",
+                req_name, inst.minecraft_version, e
+            )
+        })?;
+
+        let _ = app_handle.emit(
+            "launch-status",
+            &format!("{} ready. Preparing game...", req_name),
+        );
+        installed
     };
 
-    // Strict validation: Verify the chosen Java binary meets Minecraft's minimum major version requirement
+    // Final verification of Java executable
     if let Some(inspected) = JavaDetector::inspect_executable(&java_path) {
         if inspected.major_version < req_ver {
             state.is_launching.store(false, Ordering::SeqCst);
             return Err(format!(
-                "Incompatible Java version: Selected runtime '{}' is Java {}, but Minecraft {} strictly requires Java {} (or newer). Please select or install Java {} in Settings.",
+                "Incompatible Java version: Selected runtime '{}' is Java {}, but Minecraft {} strictly requires Java {} (or newer).",
                 java_path.display(),
                 inspected.major_version,
                 inst.minecraft_version,
-                req_ver,
                 req_ver
             ));
         }
