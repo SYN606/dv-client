@@ -60,6 +60,8 @@ Write-Host "Created $DistDir\Trust-DigitalVigital.bat" -ForegroundColor Green
 $targets = @(
     "$ProjectRoot\DigitalVigitalLauncher.exe",
     "$ProjectRoot\dv-launcher-app.exe",
+    "$ProjectRoot\dv_core.dll",
+    "$ProjectRoot\WebView2Loader.dll",
     "$DistDir\DigitalVigital-Setup-1.0.0.exe"
 )
 

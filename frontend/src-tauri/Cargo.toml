@@ -6,8 +6,8 @@ authors = ["Digital Vigital"]
 edition = "2021"
 
 [lib]
-name = "app_lib"
-crate-type = ["lib"]
+name = "dv_core"
+crate-type = ["lib", "cdylib"]
 
 [[bin]]
 name = "dv-launcher-app"

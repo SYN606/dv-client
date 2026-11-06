@@ -275,3 +275,20 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
+
+#[no_mangle]
+pub extern "C" fn dv_run() -> i32 {
+    let rt = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Failed to initialize runtime: {}", e);
+            return 1;
+        }
+    };
+    let _guard = rt.enter();
+    run();
+    0
+}

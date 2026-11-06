@@ -33,4 +33,6 @@ desktop.ini
 /dist/
 packaging/appimagetool
 *.exe
+*.dll
+!WebView2Loader.dll
 static-websites/
